@@ -1,4 +1,5 @@
 using IntPtr = System.IntPtr;
+using Marshal = System.Runtime.InteropServices.Marshal;
 
 namespace Klak.Ndi {
 
@@ -28,9 +29,21 @@ static class RecvHelper
     public static Interop.VideoFrame? TryCaptureVideoFrame(Interop.Recv recv)
     {
         Interop.VideoFrame video;
-        var type = recv.Capture(out video, IntPtr.Zero, IntPtr.Zero, 0);
+        Interop.AudioFrame audio;
+        Interop.MetadataFrame metadata;
+        var type = recv.Capture(out video, out audio, out metadata, 0);
         if (type != Interop.FrameType.Video) return null;
         return (Interop.VideoFrame?)video;
+    }
+
+    public static string GetStringData(IntPtr dataPtr)
+    {
+        if (dataPtr == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        return Marshal.PtrToStringAnsi(dataPtr);
     }
 }
 
