@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace Klak.Ndi {
 
@@ -8,16 +9,25 @@ static class AndroidHelper
 {
     #if UNITY_ANDROID && !UNITY_EDITOR
 
-    static AndroidJavaObject _mcastLock;
+    static AndroidJavaObject _nsdManager;
 
     public static void SetupNetwork()
     {
-        // Multicast lock acquisition
+        // Enable multicasting: This also adds the network permissions to the
+        // application manifest.
+        NetworkTransport.SetMulticastLock(true);
+
+        // Create a network service discovery manager object.
         var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
         var activity = player.GetStatic<AndroidJavaObject>("currentActivity");
-        var wifi = activity.Call<AndroidJavaObject>("getSystemService", "wifi");
-        _mcastLock = wifi.Call<AndroidJavaObject>("createMulticastLock", "lock");
-        _mcastLock.Call("acquire");
+        _nsdManager = activity.Call<AndroidJavaObject>
+          ("getSystemService", "servicediscovery");
+          
+        // Start service discovery for NDI TCP and UDP services. Android API Level 31+ doesn't do that automatically anymore when calling `getSystemService`.
+        var tcpListener = new AndroidJavaObject("jp.keijiro.klak.ndi.DiscoveryListener");
+        var udpListener = new AndroidJavaObject("jp.keijiro.klak.ndi.DiscoveryListener");
+        _nsdManager.Call("discoverServices", "_ndi._tcp", 1, tcpListener);
+        _nsdManager.Call("discoverServices", "_ndi._udp", 1, udpListener);
     }
 
     #else
