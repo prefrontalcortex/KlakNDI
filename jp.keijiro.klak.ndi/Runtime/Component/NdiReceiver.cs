@@ -99,6 +99,18 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		ReceiveFrameTask();
 	}
 
+	void Awake()
+	{
+		mainThreadContext = SynchronizationContext.Current;
+
+		if (_override == null) _override = new MaterialPropertyBlock();
+
+		tokenSource = new CancellationTokenSource();
+		cancellationToken = tokenSource.Token;
+
+		Task.Run(ReceiveFrameTask, cancellationToken);
+	}
+
 	void OnDestroy()
 	{
 		while (_audioFramesPool.Count > 0)
