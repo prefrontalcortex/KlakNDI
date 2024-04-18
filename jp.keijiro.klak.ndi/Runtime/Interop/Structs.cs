@@ -48,8 +48,8 @@ public struct Source
 {
     public IntPtr _NdiName;
     public IntPtr _UrlAddress;
-    public public string NdiName => Marshal.PtrToStringAnsi(_NdiName);
-    public public string UrlAddress => Marshal.PtrToStringAnsi(_UrlAddress);
+    public string NdiName => Marshal.PtrToStringAnsi(_NdiName);
+    public string UrlAddress => Marshal.PtrToStringAnsi(_UrlAddress);
 }
 
 // Video frame descriptor (equivalent to NDILib_video_frame_v2_t)

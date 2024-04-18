@@ -8,12 +8,6 @@ namespace Klak.Ndi.Editor {
 [CustomEditor(typeof(NdiReceiver))]
 sealed class NdiReceiverEditor : UnityEditor.Editor
 {
-    SerializedProperty _ndiName;
-    SerializedProperty _targetTexture;
-    SerializedProperty _targetRenderer;
-    SerializedProperty _targetMaterialProperty;
-    SerializedProperty _audioSource;
-
     static class Labels
     {
         public static Label NdiName = "NDI Name";
@@ -27,6 +21,7 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
     AutoProperty _targetTexture;
     AutoProperty _targetRenderer;
     AutoProperty _targetMaterialProperty;
+    AutoProperty _audioSource;
 
     #pragma warning restore
 
@@ -58,19 +53,21 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
     }
 
     // Request receiver restart.
-    void RequestRestart()
-    {
-        foreach (NdiReceiver receiver in targets) receiver.Restart();
-    }
+    //void RequestRestart()
+    //{
+    //    foreach (NdiReceiver receiver in targets) receiver.Restart();
+    //}
 
     void OnEnable()
     {
+            /*
         var finder = new PropertyFinder(serializedObject);
         _ndiName = finder["_ndiName"];
         _targetTexture = finder["_targetTexture"];
         _targetRenderer = finder["_targetRenderer"];
         _targetMaterialProperty = finder["_targetMaterialProperty"];
         _audioSource = finder["_audioSource"];
+            */
         AutoProperty.Scan(this);
     }
 
@@ -117,7 +114,7 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
 
         serializedObject.ApplyModifiedProperties();
 
-        if (restart) RequestRestart();
+        // if (restart) RequestRestart();
 
         if (audioSourceChanged)
             foreach (NdiReceiver receiver in targets) receiver.CheckAudioSource();

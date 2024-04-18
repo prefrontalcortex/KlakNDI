@@ -91,9 +91,8 @@ public class Recv : SafeHandleZeroOrMinusOneIsInvalid
     static extern void _Destroy(IntPtr recv);
 
     [DllImport(Config.DllName, EntryPoint = "NDIlib_recv_capture_v2")]
-    static extern FrameType _Capture
-      (Recv recv, out VideoFrame video,
-       IntPtr audio, IntPtr metadata, uint timeout);
+    static extern FrameType _Capture(Recv recv,
+        out VideoFrame video, out AudioFrame audio, out MetadataFrame metadata, uint timeout);
 
     [DllImport(Config.DllName, EntryPoint = "NDIlib_recv_free_video_v2")]
     static extern void _FreeVideo(Recv recv, in VideoFrame data);
