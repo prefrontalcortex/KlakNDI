@@ -147,14 +147,17 @@ public sealed partial class NdiSender : MonoBehaviour
         }
 
         // Frame data
+        // Frame data setup
         var frame = new Interop.VideoFrame
-          { Width       = entry.Width,
-            Height      = entry.Height,
-            LineStride  = entry.Stride,
-            FourCC      = entry.FourCC,
+        {
+            Width = entry.Width,
+            Height = entry.Height,
+            LineStride = entry.Width * 2,
+            FourCC = entry.FourCC,
             FrameFormat = Interop.FrameFormat.Progressive,
-            Data        = entry.ImagePointer,
-            Metadata    = entry.MetadataPointer };
+            Data = entry.ImagePointer,
+            _Metadata = entry.MetadataPointer
+        };
 
         // Async-send initiation
         // This causes a synchronization for the last frame -- i.e., It locks

@@ -34,37 +34,35 @@ public sealed partial class NdiReceiver : MonoBehaviour
         _converter?.Dispose();
         _converter = null;
 
-        // We don't dispose _override because it's reusable.
-    }
-
 		if(m_aTempAudioPullBuffer.IsCreated)
 			m_aTempAudioPullBuffer.Dispose();
 	}
 
 	#endregion
 
-    RenderTexture TryReceiveFrame()
-    {
-        PrepareReceiverObjects();
-        if (_recv == null) return null;
+		/*
+	RenderTexture TryReceiveFrame()
+	{
+		PrepareReceiverObjects();
+		if (_recv == null) return null;
 
-        // Video frame capturing
-        var frameOrNull = RecvHelper.TryCaptureVideoFrame(_recv);
-        if (frameOrNull == null) return null;
-        var frame = (Interop.VideoFrame)frameOrNull;
+		// Video frame capturing
+		var frameOrNull = RecvHelper.TryCaptureVideoFrame(_recv);
+		if (frameOrNull == null) return null;
+		var frame = (Interop.VideoFrame)frameOrNull;
 
-        // Pixel format conversion
-        var rt = _converter.Decode
-          (frame.Width, frame.Height, Util.HasAlpha(frame.FourCC), frame.Data);
+		// Pixel format conversion
+		var rt = _converter.Decode
+			(frame.Width, frame.Height, Util.HasAlpha(frame.FourCC), frame.Data);
 
-        // Metadata retrieval
-        if (frame.Metadata != IntPtr.Zero)
-            metadata = Marshal.PtrToStringAnsi(frame.Metadata);
-        else
-            metadata = null;
+		// Metadata retrieval
+		if (frame.Metadata != IntPtr.Zero)
+			metadata = Marshal.PtrToStringAnsi(frame.Metadata);
+		else
+			metadata = null;
 
-        // Video frame release
-        _recv.FreeVideoFrame(frame);
+		// Video frame release
+		_recv.FreeVideoFrame(frame);
 
 		if (_override == null) _override = new MaterialPropertyBlock();
 
@@ -72,13 +70,15 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		cancellationToken = tokenSource.Token;
 
 		Task.Run(ReceiveFrameTask, cancellationToken);
+	}
+		*/
 
     internal void Restart() => ReleaseReceiverObjects();
 
 	void OnDestroy()
 	{
 		tokenSource?.Cancel();
-		ReleaseInternalObjects();
+        ReleaseReceiverObjects();
 
 		AudioSettings.OnAudioConfigurationChanged -= AudioSettings_OnAudioConfigurationChanged;
 		DestroyAudioSourceBridge();
@@ -88,6 +88,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 	#region Receiver implementation
 
+		/*
+	void Temp()
+	{ 
         // Material property override
         if (targetRenderer != null)
         {
@@ -99,15 +102,20 @@ public sealed partial class NdiReceiver : MonoBehaviour
         // External texture update
         if (targetTexture != null) Graphics.Blit(rt, targetTexture);
     }
-    
-	void ReceiveFrameTask()
+		*/
+
+    private CancellationTokenSource tokenSource;
+    private CancellationToken cancellationToken;
+    private static SynchronizationContext mainThreadContext;
+
+    void ReceiveFrameTask()
 	{
 		try
 		{
 			// retrieve frames in a loop
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				PrepareInternalObjects();
+				PrepareReceiverObjects();
 
 				if (_recv == null)
 				{
@@ -164,7 +172,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		// Pixel format conversion
 		var rt = _converter.Decode
 			(videoFrame.Width, videoFrame.Height,
-			Util.CheckAlpha(videoFrame.FourCC), videoFrame.Data);
+			Util.HasAlpha(videoFrame.FourCC), videoFrame.Data);
 
 		// Copy the metadata if any.
 		metadata = videoFrame.Metadata;
@@ -244,7 +252,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private bool _hasAudioSource;
 	private AudioSourceBridge _audioSourceBridge;
 
-	internal void CheckAudioSource()
+	public void CheckAudioSource()
 	{
 		if(Application.isPlaying == false)
 			return;
