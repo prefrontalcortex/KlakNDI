@@ -85,6 +85,10 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		cancellationToken = tokenSource.Token;
 
 		Task.Run(ReceiveFrameTask, cancellationToken);
+
+		UpdateAudioExpectations();
+		AudioSettings.OnAudioConfigurationChanged += AudioSettings_OnAudioConfigurationChanged;
+		CheckAudioSource();
 	}
 
 	void OnDestroy()
