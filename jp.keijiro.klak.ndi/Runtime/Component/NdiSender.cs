@@ -82,13 +82,13 @@ public sealed partial class NdiSender : MonoBehaviour
         VirtualAudio.useVirtualAudio = true;
         VirtualAudio.ClearAllVirtualSpeakerListeners();
 
-        float distance = virtualSpeakerDistance;
+        float distance = virtualListenerDistance;
         float dotAdjust = 0.5f;
-        VirtualAudio.AddSpeaker( new Vector3(-distance, 0f, distance), dotAdjust, 1f);
-        VirtualAudio.AddSpeaker( new Vector3(distance, 0f, distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(-distance, 0f, distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(distance, 0f, distance), dotAdjust, 1f);
         
-        VirtualAudio.AddSpeaker( new Vector3(-distance, 0f, -distance), dotAdjust, 1f);
-        VirtualAudio.AddSpeaker( new Vector3(distance, 0f, -distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(-distance, 0f, -distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(distance, 0f, -distance), dotAdjust, 1f);
         _useVirtualSpeakerListeners = true;
     }    
     
@@ -97,16 +97,16 @@ public sealed partial class NdiSender : MonoBehaviour
         VirtualAudio.useVirtualAudio = true;
         VirtualAudio.ClearAllVirtualSpeakerListeners();
 
-        float distance = virtualSpeakerDistance;
+        float distance = virtualListenerDistance;
         float dotAdjust = 0.5f;
-        VirtualAudio.AddSpeaker( new Vector3(-distance, 0f, distance), dotAdjust, 1f);
-        VirtualAudio.AddSpeaker( new Vector3(distance, 0f, distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(-distance, 0f, distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(distance, 0f, distance), dotAdjust, 1f);
         
-        VirtualAudio.AddSpeaker( new Vector3(0f, 0f, distance), dotAdjust, 1f);
-        VirtualAudio.AddSpeaker( new Vector3(0f, 0f, 0f), dotAdjust, 0f);
+        VirtualAudio.AddListener( new Vector3(0f, 0f, distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(0f, 0f, 0f), dotAdjust, 0f);
         
-        VirtualAudio.AddSpeaker( new Vector3(-distance, 0f, -distance), dotAdjust, 1f);
-        VirtualAudio.AddSpeaker( new Vector3(distance, 0f, -distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(-distance, 0f, -distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(distance, 0f, -distance), dotAdjust, 1f);
         _useVirtualSpeakerListeners = true;
     }
 
@@ -115,19 +115,19 @@ public sealed partial class NdiSender : MonoBehaviour
         VirtualAudio.useVirtualAudio = true;
         VirtualAudio.ClearAllVirtualSpeakerListeners();
 
-        float distance = virtualSpeakerDistance;
+        float distance = virtualListenerDistance;
         float dotAdjust = 0.5f;
-        VirtualAudio.AddSpeaker( new Vector3(-distance, 0f, distance), dotAdjust, 1f);
-        VirtualAudio.AddSpeaker( new Vector3(distance, 0f, distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(-distance, 0f, distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(distance, 0f, distance), dotAdjust, 1f);
         
-        VirtualAudio.AddSpeaker( new Vector3(0f, 0f, distance), dotAdjust, 1f);
-        VirtualAudio.AddSpeaker( new Vector3(0f, 0f, 0f), dotAdjust, 0f);
+        VirtualAudio.AddListener( new Vector3(0f, 0f, distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(0f, 0f, 0f), dotAdjust, 0f);
 
-        VirtualAudio.AddSpeaker( new Vector3(-distance, 0f, 0), dotAdjust, 1f);
-        VirtualAudio.AddSpeaker( new Vector3(distance, 0f, 0), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(-distance, 0f, 0), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(distance, 0f, 0), dotAdjust, 1f);
         
-        VirtualAudio.AddSpeaker( new Vector3(-distance, 0f, -distance), dotAdjust, 1f);
-        VirtualAudio.AddSpeaker( new Vector3(distance, 0f, -distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(-distance, 0f, -distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(distance, 0f, -distance), dotAdjust, 1f);
         _useVirtualSpeakerListeners = true;
     }
     
@@ -147,11 +147,11 @@ public sealed partial class NdiSender : MonoBehaviour
         }
         else if (_useVirtualSpeakerListeners)
         {
-            SendCustomSpeakersData();
+            SendCustomListenerData();
         }
     }
     
-    private void SendCustomSpeakersData()
+    private void SendCustomListenerData()
     {
         var mixedAudio = VirtualAudio.GetMixedAudio(out int samplesCount, _listenerPosition, useCameraPositionForVirtualAttenuation);
         int channels = mixedAudio.Count;

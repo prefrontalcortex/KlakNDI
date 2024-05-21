@@ -29,11 +29,11 @@ namespace Klak.Ndi.Audio
             public AudioSourceSettings settings;
         }
 
-        private class SpeakerData
+        private class ListenerData
         {
             public Vector3 position;
             public float volume;
-            public float speakerDotSubtract = 0.5f;
+            public float directionDotSubtract = 0.5f;
             public float[] audioData;
 
             public void ResetAudioData(int sampleSize)
@@ -52,7 +52,7 @@ namespace Klak.Ndi.Audio
         private static int _audioSourceNextId = 0;
 
         private static readonly Dictionary<int, AudioSourceData> _audioSourcesData = new Dictionary<int, AudioSourceData>();
-        private static readonly List<SpeakerData> _speakersData = new List<SpeakerData>();
+        private static readonly List<ListenerData> _listenerDatas = new List<ListenerData>();
 
         private static readonly List<float> _attenuationWeights = new List<float>();
         private static readonly List<float> _spatialBlends = new List<float>();
@@ -69,30 +69,30 @@ namespace Klak.Ndi.Audio
         private static void Init()
         {
             _audioSourcesData.Clear();
-            _speakersData.Clear();
+            _listenerDatas.Clear();
         }
 
         public static void ClearAllVirtualSpeakerListeners()
         {
             lock (_speakerLockObject)
             {
-                _speakersData.Clear();
+                _listenerDatas.Clear();
             }
         }
 
-        public static void AddSpeaker(Vector3 relativePosition, float dotDirectionAdjust = 0.5f, float volume = 1f)
+        public static void AddListener(Vector3 relativePosition, float dotDirectionAdjust = 0.5f, float volume = 1f)
         {
-            var newData = new SpeakerData
+            var newData = new ListenerData
             {
                 position = relativePosition,
                 volume = volume,
-                speakerDotSubtract = dotDirectionAdjust,
+                directionDotSubtract = dotDirectionAdjust,
                 audioData = Array.Empty<float>()
             };
 
             lock (_speakerLockObject)
             {
-                _speakersData.Add(newData);
+                _listenerDatas.Add(newData);
             }
         }
 
@@ -119,14 +119,14 @@ namespace Klak.Ndi.Audio
         private static float GetCameraAvgDistance(Vector3 cameraPosition)
         {
             float distanceFromCameraAvg = 0;
-            foreach (var speaker in _speakersData)
+            foreach (var speaker in _listenerDatas)
             {
                 float d = Vector3.Distance(cameraPosition + speaker.position, cameraPosition);
                 _distances.Add(d);
                 distanceFromCameraAvg += d;
             }
 
-            distanceFromCameraAvg /= _speakersData.Count;
+            distanceFromCameraAvg /= _listenerDatas.Count;
             return distanceFromCameraAvg;
         }
         
@@ -153,7 +153,7 @@ namespace Klak.Ndi.Audio
             {
                 samples = 0;
 
-                if (_speakersData.Count == 0 || _audioSourcesData.Count == 0)
+                if (_listenerDatas.Count == 0 || _audioSourcesData.Count == 0)
                     return new List<float[]>(0);
 
 
@@ -165,9 +165,9 @@ namespace Klak.Ndi.Audio
                         samples = audioSource.Value.data.Length;
                 }
 
-                for (int iSpeaker = 0; iSpeaker < _speakersData.Count; iSpeaker++)
+                for (int iSpeaker = 0; iSpeaker < _listenerDatas.Count; iSpeaker++)
                 {
-                    var speaker = _speakersData[iSpeaker];
+                    var speaker = _listenerDatas[iSpeaker];
                     speaker.ResetAudioData(samples);
                 }
 
@@ -178,13 +178,13 @@ namespace Klak.Ndi.Audio
 
                     if (forceToChannel != -1)
                     {
-                        if (forceToChannel > _speakersData.Count - 1)
+                        if (forceToChannel > _listenerDatas.Count - 1)
                         {
                             Debug.LogError("Can't force AudioSource to channel. Wrong channel is set. OutOfBound");
                         }
                         else
                         {
-                            var speaker = _speakersData[forceToChannel];
+                            var speaker = _listenerDatas[forceToChannel];
                             for (int j = 0; j < audioSource.Value.data.Length; j++)
                                 speaker.audioData[j] = MixSample(speaker.audioData[j], speaker.volume * audioSource.Value.data[j]);
                             continue;
@@ -203,12 +203,12 @@ namespace Klak.Ndi.Audio
 
                     var audioSourceSettings = audioSource.Value.settings;
 
-                    foreach (var speaker in _speakersData)
+                    foreach (var speaker in _listenerDatas)
                     {
                         Vector3 centerToSpeakerDir = speaker.position.normalized;
                         // Dot product for speaker direction weighting
                         float dot = Vector3.Dot(centerToSourceDir, centerToSpeakerDir);
-                        _speakerDotProducts.Add(Mathf.Clamp01(dot - speaker.speakerDotSubtract));
+                        _speakerDotProducts.Add(Mathf.Clamp01(dot - speaker.directionDotSubtract));
 
                         float distanceAS_SPK =
                             Vector3.Distance(
@@ -236,12 +236,12 @@ namespace Klak.Ndi.Audio
                         float dotWeight = volume * _speakerDotProducts[i];
                         float weight = Mathf.Clamp01(dotWeight + centerWeight);
                         float spatial = Mathf.Lerp(weight, 1f, 1f - _spatialBlends[i]);
-                        _weights.Add(spatial * _speakersData[i].volume * 2f);
+                        _weights.Add(spatial * _listenerDatas[i].volume * 2f);
                     }
 
-                    for (int iSpeaker = 0; iSpeaker < _speakersData.Count; iSpeaker++)
+                    for (int iSpeaker = 0; iSpeaker < _listenerDatas.Count; iSpeaker++)
                     {
-                        var speaker = _speakersData[iSpeaker];
+                        var speaker = _listenerDatas[iSpeaker];
 
                         if (speaker.audioData.Length != audioSource.Value.data.Length)
                         {
@@ -259,7 +259,7 @@ namespace Klak.Ndi.Audio
                     }
                 }
 
-                result = _speakersData.Select(s => s.audioData).ToList();
+                result = _listenerDatas.Select(s => s.audioData).ToList();
             }
 
             return result;
