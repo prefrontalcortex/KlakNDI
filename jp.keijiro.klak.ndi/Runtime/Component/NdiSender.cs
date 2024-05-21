@@ -436,17 +436,24 @@ public sealed partial class NdiSender : MonoBehaviour
     {
         _audioMode = audioMode;
         int availableAudioChannels = Util.AudioChannels(AudioSettings.driverCapabilities);
-
+        var audioSettings = AudioSettings.GetConfiguration();
+        
         ClearVirtualSpeakerListeners();
         switch (audioMode)
         {
             case AudioMode.AudioListener:
                 break;
             case AudioMode.TryOrForce5point1:
+                audioSettings.speakerMode = AudioSpeakerMode.Mode5point1;
+                AudioSettings.Reset(audioSettings);
+                
                 if (availableAudioChannels != 6)
                     CreateAudioSetup_5point1();
                 break;
             case AudioMode.TryOrForce7point1:
+                audioSettings.speakerMode = AudioSpeakerMode.Mode7point1;
+                AudioSettings.Reset(audioSettings);
+                
                 if (availableAudioChannels != 8)
                     CreateAudioSetup_7point1();
                 break;
@@ -457,6 +464,9 @@ public sealed partial class NdiSender : MonoBehaviour
                 CreateAudioSetup_7point1();
                 break;
             case AudioMode.TryOrForceQuad:
+                audioSettings.speakerMode = AudioSpeakerMode.Quad;
+                AudioSettings.Reset(audioSettings);
+
                 if (availableAudioChannels != 4)
                     CreateAudioSetup_Quad();
                 break;
