@@ -30,6 +30,21 @@ static class Util
         else
             Object.DestroyImmediate(obj);
     }
+
+    public static int AudioChannels(AudioSpeakerMode speakerMode)
+    {
+        switch (speakerMode)
+        {
+            case AudioSpeakerMode.Mono: return 1;
+            case AudioSpeakerMode.Stereo: return 2;
+            case AudioSpeakerMode.Quad: return 4;
+            case AudioSpeakerMode.Surround: return 5;
+            case AudioSpeakerMode.Mode5point1: return 6;
+            case AudioSpeakerMode.Mode7point1: return 8;
+            default:
+                return 2;
+        }
+    }
 }
 
 // Extension method to add IntPtr support to ComputeBuffer.SetData

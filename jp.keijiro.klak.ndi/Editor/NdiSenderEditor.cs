@@ -19,6 +19,9 @@ sealed class NdiSenderEditor : UnityEditor.Editor
     AutoProperty _captureMethod;
     AutoProperty _sourceCamera;
     AutoProperty _sourceTexture;
+    AutoProperty audioMode;
+    AutoProperty virtualSpeakerDistance;
+    private AutoProperty useCameraPositionForVirtualAttenuation;
 
     #pragma warning restore
 
@@ -33,6 +36,13 @@ sealed class NdiSenderEditor : UnityEditor.Editor
             _captureMethod.Target.enumValueIndex != (int)CaptureMethod.GameView)
             EditorGUILayout.DelayedTextField(_ndiName, Labels.NdiName);
 
+        EditorGUILayout.PropertyField(audioMode);
+        if (audioMode.Target.enumValueIndex != 0)
+        {
+            EditorGUILayout.PropertyField(virtualSpeakerDistance);
+            EditorGUILayout.PropertyField(useCameraPositionForVirtualAttenuation);
+        }
+        
         // Keep Alpha
         EditorGUILayout.PropertyField(_keepAlpha);
 

@@ -8,9 +8,14 @@ public sealed partial class NdiSender : MonoBehaviour
 {
     #region NDI source settings
 
+    public enum AudioMode { AudioListener, TryOrForceQuad, TryOrForce5point1, TryOrForce7point1, ForceVirtualQuad, ForceVirtual5point1, ForceVirtual7point1 }
+    
     [SerializeField] string _ndiName = "NDI Sender";
     string _ndiNameRuntime;
-
+    public AudioMode audioMode = AudioMode.AudioListener;
+    public float virtualSpeakerDistance = 10;
+    public bool useCameraPositionForVirtualAttenuation = false;
+    
     public string ndiName
       { get => _ndiNameRuntime;
         set => SetNdiName(value); }
@@ -93,10 +98,17 @@ public sealed partial class NdiSender : MonoBehaviour
 
     #if UNITY_EDITOR
     void OnValidate()
+    {
+        if (audioMode != AudioMode.AudioListener)
+        {
+            AudioSettings.SetSpatializerPluginName("Dummy Spatializer (NDI)");
+        }
+
     #else
     void Awake()
-    #endif
     {
+    #endif
+    
         ndiName = _ndiName;
         captureMethod = _captureMethod;
         sourceCamera = _sourceCamera;
