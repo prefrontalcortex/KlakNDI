@@ -75,12 +75,16 @@ public sealed partial class NdiReceiver : MonoBehaviour
     // We use OnValidate on Editor, which also works as an initializer.
     // Player never call it, so we use Awake instead of it.
 
-    #if UNITY_EDITOR
     void OnValidate()
-    #else
-    void Awake()
-    #endif
-      => ndiName = _ndiName;
+    {
+      ndiName = _ndiName;
+    }
+
+    #endregion
+
+    #region Audio Settings
+
+    public float virtualSpeakerDistances = 10f;
 
     #endregion
 }

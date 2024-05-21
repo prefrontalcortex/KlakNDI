@@ -1,11 +1,13 @@
-﻿using System.Threading;
+﻿using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Xml;
 using CircularBuffer;
+using Klak.Ndi.Audio;
 using UnityEngine;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using IntPtr = System.IntPtr;
-using Marshal = System.Runtime.InteropServices.Marshal;
 
 namespace Klak.Ndi {
 
@@ -77,6 +79,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 	void Awake()
 	{
+		ndiName = _ndiName;
+
 		mainThreadContext = SynchronizationContext.Current;
 
 		if (_override == null) _override = new MaterialPropertyBlock();
@@ -89,6 +93,22 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		UpdateAudioExpectations();
 		AudioSettings.OnAudioConfigurationChanged += AudioSettings_OnAudioConfigurationChanged;
 		CheckAudioSource();
+	}
+
+	private void Update()
+	{
+		if (_settingsChanged)
+		{
+			
+			//ReadAudioMetaData(audio.Metadata);
+			if (_receivedAudioChannels != _virtualSpeakersCount && _receivedAudioChannels != _expectedAudioChannels)
+			{
+				DestroyAudioSourceBridge();
+				CreateVirtualSpeakers(_receivedAudioChannels);
+			}
+			_settingsChanged = false;
+		}
+
 	}
 
 	void OnDestroy()
@@ -267,9 +287,16 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 	private bool _hasAudioSource;
 	private AudioSourceBridge _audioSourceBridge;
+	private bool _usingVirtualSpeakers = false;
+	
+	private List<VirtualSpeakers> _virtualSpeakers = new List<VirtualSpeakers>();
 
+	private int _virtualSpeakersCount = 0;
+	private bool _settingsChanged = false;
+	
 	public void CheckAudioSource()
 	{
+		
 		if(Application.isPlaying == false)
 			return;
 
@@ -280,6 +307,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		if (_hasAudioSource == false)
 			return;
 
+		if (_usingVirtualSpeakers)
+			return;
+		
 		// Make sure it is playing so OnAudioFilterRead gets called by Unity
 		_audioSource.Play();
 
@@ -287,10 +317,15 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			return;
 
 		// Create a bridge component if the AudioSource is not on this GameObject so we can feed audio samples to it.
+
+		if (_receivedAudioChannels == -1)
+			return;
+		
 		_audioSourceBridge = _audioSource.GetComponent<AudioSourceBridge>();
 		if(_audioSourceBridge == null)
 			_audioSourceBridge = _audioSource.gameObject.AddComponent<AudioSourceBridge>();
-
+		
+		_audioSourceBridge.Init(false, _expectedAudioChannels);
 		_audioSourceBridge._handler = this;
 	}
 
@@ -315,29 +350,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private void UpdateAudioExpectations()
 	{
 		_expectedAudioSampleRate = AudioSettings.outputSampleRate;
-		switch (AudioSettings.speakerMode)
-		{
-			case AudioSpeakerMode.Mono:
-			case AudioSpeakerMode.Stereo:
-				_expectedAudioChannels = (int)AudioSettings.speakerMode;
-				break;
-
-			case AudioSpeakerMode.Quad:
-				_expectedAudioChannels = 4;
-				break;
-
-			case AudioSpeakerMode.Surround:
-				_expectedAudioChannels = 5;
-				break;
-
-			case AudioSpeakerMode.Mode5point1:
-				_expectedAudioChannels = 6;
-				break;
-
-			case AudioSpeakerMode.Mode7point1:
-				_expectedAudioChannels = 8;
-				break;
-		}
+		_expectedAudioChannels = Util.AudioChannels(AudioSettings.driverCapabilities);
 	}
 
 	// Automagically called by Unity when an AudioSource component is present on the same GameObject
@@ -361,6 +374,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 	internal void HandleAudioFilterRead(float[] data, int channels)
 	{
+		//Debug.Log(" READ DATA: "+data.Length + " "+AudioSettings.dspTime);
 		int length = data.Length;
 
 		// STE: Waiting for enough read ahead buffer frames?
@@ -379,11 +393,13 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 		bool bPreviousWaitForBufferFill = m_bWaitForBufferFill;
 		int iAudioBufferSize = 0;
+		int bufferCapacity = 0;
 
 		// STE: Lock buffer for the smallest amount of time
 		lock (audioBufferLock)
 		{
 			iAudioBufferSize = audioBuffer.Size;
+			bufferCapacity = audioBuffer.Capacity;
 
 			// If we do not have enough data for a single frame then we will want to buffer up some read-ahead audio data. This will cause a longer gap in the audio playback, but this is better than more intermittent glitches I think
 			m_bWaitForBufferFill = (iAudioBufferSize < length);
@@ -396,9 +412,167 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 		if ( m_bWaitForBufferFill && !bPreviousWaitForBufferFill )
 		{
-			Debug.LogWarning($"Audio buffer underrun: OnAudioFilterRead: data.Length = {data.Length} | audioBuffer.Size = {iAudioBufferSize}", this);
+			Debug.LogWarning($"Audio buffer underrun: OnAudioFilterRead: data.Length = {data.Length} | audioBuffer.Size = {iAudioBufferSize} | audioBuffer.Capacity = {bufferCapacity}", this);
 		}
 	}
+	
+	void DestroyAllVirtualSpeakers()
+	{
+		_usingVirtualSpeakers = false;
+		while (_virtualSpeakers.Count > 0)
+		{
+			_virtualSpeakers[0].DestroyAudioSourceBridge();
+			Destroy(_virtualSpeakers[0].speakerAudio.gameObject);
+			_virtualSpeakers.RemoveAt(0);
+		}
+	}
+	
+	void CreateVirtualSpeakersQuad()
+	{
+		float dist = virtualSpeakerDistances;
+		for (int i = 0; i < 6; i++)
+		{
+			var speaker = new VirtualSpeakers();
+
+			Vector3 position = Vector3.zero;
+			switch (i)
+			{
+				case 0 : position = new Vector3(-dist, 0, dist); break;
+				case 1 : position = new Vector3(dist, 0, dist); break;
+				case 4 : position = new Vector3(-dist, 0, -dist); break;
+				case 5 : position = new Vector3(dist, 0, -dist); break;
+			}
+			
+			speaker.CreateGameObjectWithAudioSource(transform, position);
+			speaker.CreateAudioSourceBridge(this, i, 4, _expectedAudioChannels);
+			_virtualSpeakers.Add(speaker);
+		}		
+	}	
+
+	void CreateVirtualSpeakers5point1()
+	{
+		float dist = virtualSpeakerDistances;
+		for (int i = 0; i < 6; i++)
+		{
+			var speaker = new VirtualSpeakers();
+
+			Vector3 position = Vector3.zero;
+			switch (i)
+			{
+				case 0 : position = new Vector3(-dist, 0, dist); break;
+				case 1 : position = new Vector3(dist, 0, dist); break;
+				case 2 : position = new Vector3(0, 0, dist); break;
+				case 3 : position = new Vector3(0, 0, 0); break;
+				case 4 : position = new Vector3(-dist, 0, -dist); break;
+				case 5 : position = new Vector3(dist, 0, -dist); break;
+			}
+			
+			speaker.CreateGameObjectWithAudioSource(transform, position);
+			speaker.CreateAudioSourceBridge(this, i, 6, _expectedAudioChannels);
+			_virtualSpeakers.Add(speaker);
+		}		
+	}
+
+	void CreateVirtualSpeakers7point1()
+	{
+		float dist = virtualSpeakerDistances;
+		for (int i = 0; i < 8; i++)
+		{
+			var speaker = new VirtualSpeakers();
+
+			Vector3 position = Vector3.zero;
+			switch (i)
+			{
+				case 0 : position = new Vector3(-dist, 0, dist); break;
+				case 1 : position = new Vector3(dist, 0, dist); break;
+				case 2 : position = new Vector3(0, 0, dist); break;
+				case 3 : position = new Vector3(0, 0, 0); break;
+				case 4 : position = new Vector3(-dist, 0, 0); break;
+				case 5 : position = new Vector3(dist, 0, 0); break;
+				case 6 : position = new Vector3(-dist, 0, -dist); break;
+				case 7 : position = new Vector3(dist, 0, -dist); break;
+			}
+			
+			speaker.CreateGameObjectWithAudioSource(transform, position);
+			speaker.CreateAudioSourceBridge(this, i, 8, _expectedAudioChannels);
+			_virtualSpeakers.Add(speaker);
+		}
+	}
+	
+	void CreateVirtualSpeakers(int channelNo)
+	{
+		DestroyAllVirtualSpeakers();
+		_usingVirtualSpeakers = true;
+
+		if (channelNo == 4)
+		{
+			CreateVirtualSpeakersQuad();
+		}
+		
+		if (channelNo == 5 + 1)
+		{
+			CreateVirtualSpeakers5point1();
+		}
+
+		if (channelNo == 7 + 1)
+		{
+			CreateVirtualSpeakers7point1();	
+		}
+
+		_virtualSpeakersCount = _virtualSpeakers.Count;
+
+		if (_virtualSpeakersCount == 0)
+		{
+			Debug.LogWarning($"No virtual speakers created. {channelNo} channels not supported. Fallback to native AudioSource.", this);
+			_usingVirtualSpeakers = false;
+			_virtualSpeakersCount = 0;
+		}
+	}
+	
+	void ReadAudioMetaData(string metadata)
+	{
+		return;
+		var xmlMeta = new XmlDocument();
+		xmlMeta.LoadXml(metadata);
+		
+		DestroyAllVirtualSpeakers();
+		var xmlSpeakers = xmlMeta.GetElementById("VirtualSpeakers");
+		if (xmlSpeakers != null)
+		{
+			foreach (XmlNode xmlSpeaker in xmlSpeakers.ChildNodes)
+			{
+				if (xmlSpeaker.Name == "Speaker")
+				{
+					var speaker = new VirtualSpeakers();
+					speaker.speakerAudio = gameObject.AddComponent<AudioSource>();
+					speaker.speakerAudio.spatialBlend = 1;
+					speaker.speakerAudio.rolloffMode = AudioRolloffMode.Linear;
+					speaker.speakerAudio.minDistance = 0.1f;
+					speaker.speakerAudio.maxDistance = 1000f;
+					speaker.speakerAudio.loop = true;
+					speaker.speakerAudio.playOnAwake = true;
+					speaker.speakerAudio.volume = 1;
+					speaker.speakerAudio.mute = false;
+					speaker.speakerAudio.bypassEffects = false;
+					speaker.speakerAudio.bypassListenerEffects = false;
+					speaker.speakerAudio.bypassReverbZones = false;
+					speaker.speakerAudio.priority = 128;
+					speaker.speakerAudio.outputAudioMixerGroup = null;
+					speaker.speakerAudio.clip = null;
+					speaker.speakerAudio.name = xmlSpeaker.Attributes["Name"].Value;
+					speaker.relativePosition = new Vector3(
+						float.Parse(xmlSpeaker.Attributes["X"].Value),
+						float.Parse(xmlSpeaker.Attributes["Y"].Value),
+						float.Parse(xmlSpeaker.Attributes["Z"].Value)
+					);
+					_virtualSpeakers.Add(speaker);
+				}
+			}
+		}
+		
+		
+	}
+
 
 	void FillAudioBuffer(Interop.AudioFrame audio)
 	{
@@ -406,16 +580,19 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		{
 			return;
 		}
-
+		
+		bool settingsChanged = false;
 		if (audio.SampleRate != _receivedAudioSampleRate)
 		{
+			settingsChanged = true;
 			_receivedAudioSampleRate = audio.SampleRate;
 			if (_receivedAudioSampleRate != _expectedAudioSampleRate)
 				Debug.LogWarning($"Audio sample rate does not match. Expected {_expectedAudioSampleRate} but received {_receivedAudioSampleRate}.", this);
 		}
 
-		if(audio.NoChannels != _receivedAudioChannels)
+		if(audio.NoChannels != _virtualSpeakersCount)
 		{
+			settingsChanged = true;
 			_receivedAudioChannels = audio.NoChannels;
 			if(_receivedAudioChannels != _expectedAudioChannels)
 				Debug.LogWarning($"Audio channel count does not match. Expected {_expectedAudioChannels} but received {_receivedAudioChannels}.", this);
@@ -424,10 +601,15 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		if (audio.Metadata != null)
 			Debug.Log(audio.Metadata);
 
+		if (settingsChanged)
+		{
+			_settingsChanged = true; 
+		}
+
 		int totalSamples = 0;
 
 		// If the received data's format is as expected we can convert from interleaved to planar and just memcpy
-		if (_receivedAudioSampleRate == _expectedAudioSampleRate && _receivedAudioChannels == _expectedAudioChannels)
+		if (_receivedAudioSampleRate == _expectedAudioSampleRate) 
 		{
 			// Converted from NDI C# Managed sample code
 			// we're working in bytes, so take the size of a 32 bit sample (float) into account
@@ -456,8 +638,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				{
 					// Convert from float planar to float interleaved audio
 					_recv.AudioFrameToInterleaved(ref audio, ref interleavedAudio);
+					int channels = _usingVirtualSpeakers ? _virtualSpeakersCount : _expectedAudioChannels;
 
-					totalSamples = interleavedAudio.NoSamples * _expectedAudioChannels;
+					totalSamples = interleavedAudio.NoSamples * channels;
 					void* audioDataPtr = interleavedAudio.Data.ToPointer();
 
 					if (audioDataPtr != null)
@@ -486,39 +669,25 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				var needsToResample = resamplingRate != 1;
 				var neededSamples = needsToResample ? (int)(audio.NoSamples / resamplingRate) : audio.NoSamples;
 
-				totalSamples = neededSamples * _expectedAudioChannels;
+				int channels = _usingVirtualSpeakers ? _virtualSpeakersCount : _expectedAudioChannels;
+				totalSamples = neededSamples * channels;
 
-				// Blindly mix channels if their count does not match. Needs better remapping. Make this behaviour opt-in?
-				if (_receivedAudioChannels != _expectedAudioChannels)
+				for (int i = 0; i < neededSamples; i++)
 				{
-					for (int i = 0; i < neededSamples; i++)
-					{
-						var sample = 0f;
-						for (int j = 0; j < audio.NoChannels; j++)
-							sample += ReadAudioDataSampleInterleaved(audio, audioDataPtr, i, j, resamplingRate);
-
-						for (int j = 0; j < _expectedAudioChannels; j++)
-							m_aTempSamplesArray[i * _expectedAudioChannels + j] = sample;
-					}
+					for (int j = 0; j < channels; j++)
+						m_aTempSamplesArray[i * channels + j] = ReadAudioDataSampleInterleaved(audio, audioDataPtr, i, j, resamplingRate);
 				}
-				// So we just need to resample
-				else
-				{
-					for (int i = 0; i < neededSamples; i++)
-					{
-						for (int j = 0; j < _expectedAudioChannels; j++)
-							m_aTempSamplesArray[i * _expectedAudioChannels + j] = ReadAudioDataSampleInterleaved(audio, audioDataPtr, i, j, resamplingRate);
-					}
-				}
+				
 			}
 		}
+		//Debug.Log("RECV AUDIO FRAME: "+totalSamples+ " "+AudioSettings.dspTime);
 
 		// Copy new sample data into the circular array
 		lock (audioBufferLock)
 		{
-			if (audioBuffer.Capacity < totalSamples)
+			if (audioBuffer.Capacity < totalSamples * m_iMinBufferAheadFrames)
 			{
-				audioBuffer = new CircularBuffer<float>(totalSamples);
+				audioBuffer = new CircularBuffer<float>(totalSamples * m_iMinBufferAheadFrames);
 			}
 
 			audioBuffer.PushBack(m_aTempSamplesArray, totalSamples);
