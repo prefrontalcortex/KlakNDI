@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Klak.Ndi.Audio
 {
-    public static class VirtualAudio
+    internal static class VirtualAudio
     {
         public struct AudioSourceSettings
         {
