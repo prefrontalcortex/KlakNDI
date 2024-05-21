@@ -1,3 +1,6 @@
+using System;
+using System.Runtime.InteropServices;
+using Klak.Ndi.Audio;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -61,8 +64,191 @@ public sealed partial class NdiSender : MonoBehaviour
     private int numChannels = 0;
     private float[] samples = new float[1];
     private int sampleRate = 44100;
+    private AudioMode _audioMode;
+    private Vector3 _listenerPosition;
+    private object _lockObj = new object();
+    private IntPtr _metaDataPtr = IntPtr.Zero;
+    private bool _useVirtualSpeakerListeners = false;
     
+    private void ClearVirtualSpeakerListeners()
+    {
+        _useVirtualSpeakerListeners = false;
+        VirtualAudio.useVirtualAudio = false;
+        VirtualAudio.ClearAllVirtualSpeakerListeners();
+    }
+    
+    private void CreateAudioSetup_Quad()
+    {
+        VirtualAudio.useVirtualAudio = true;
+        VirtualAudio.ClearAllVirtualSpeakerListeners();
+
+        float distance = virtualSpeakerDistance;
+        float dotAdjust = 0.5f;
+        VirtualAudio.AddSpeaker( new Vector3(-distance, 0f, distance), dotAdjust, 1f);
+        VirtualAudio.AddSpeaker( new Vector3(distance, 0f, distance), dotAdjust, 1f);
+        
+        VirtualAudio.AddSpeaker( new Vector3(-distance, 0f, -distance), dotAdjust, 1f);
+        VirtualAudio.AddSpeaker( new Vector3(distance, 0f, -distance), dotAdjust, 1f);
+        _useVirtualSpeakerListeners = true;
+    }    
+    
+    private void CreateAudioSetup_5point1()
+    {
+        VirtualAudio.useVirtualAudio = true;
+        VirtualAudio.ClearAllVirtualSpeakerListeners();
+
+        float distance = virtualSpeakerDistance;
+        float dotAdjust = 0.5f;
+        VirtualAudio.AddSpeaker( new Vector3(-distance, 0f, distance), dotAdjust, 1f);
+        VirtualAudio.AddSpeaker( new Vector3(distance, 0f, distance), dotAdjust, 1f);
+        
+        VirtualAudio.AddSpeaker( new Vector3(0f, 0f, distance), dotAdjust, 1f);
+        VirtualAudio.AddSpeaker( new Vector3(0f, 0f, 0f), dotAdjust, 0f);
+        
+        VirtualAudio.AddSpeaker( new Vector3(-distance, 0f, -distance), dotAdjust, 1f);
+        VirtualAudio.AddSpeaker( new Vector3(distance, 0f, -distance), dotAdjust, 1f);
+        _useVirtualSpeakerListeners = true;
+    }
+
+    private void CreateAudioSetup_7point1()
+    {
+        VirtualAudio.useVirtualAudio = true;
+        VirtualAudio.ClearAllVirtualSpeakerListeners();
+
+        float distance = virtualSpeakerDistance;
+        float dotAdjust = 0.5f;
+        VirtualAudio.AddSpeaker( new Vector3(-distance, 0f, distance), dotAdjust, 1f);
+        VirtualAudio.AddSpeaker( new Vector3(distance, 0f, distance), dotAdjust, 1f);
+        
+        VirtualAudio.AddSpeaker( new Vector3(0f, 0f, distance), dotAdjust, 1f);
+        VirtualAudio.AddSpeaker( new Vector3(0f, 0f, 0f), dotAdjust, 0f);
+
+        VirtualAudio.AddSpeaker( new Vector3(-distance, 0f, 0), dotAdjust, 1f);
+        VirtualAudio.AddSpeaker( new Vector3(distance, 0f, 0), dotAdjust, 1f);
+        
+        VirtualAudio.AddSpeaker( new Vector3(-distance, 0f, -distance), dotAdjust, 1f);
+        VirtualAudio.AddSpeaker( new Vector3(distance, 0f, -distance), dotAdjust, 1f);
+        _useVirtualSpeakerListeners = true;
+    }
+    
+    private void Update()
+    {
+        lock (_lockObj)
+        {
+            _listenerPosition = transform.position;
+        }
+    }
+
     private void OnAudioFilterRead(float[] data, int channels)
+    {
+        if (_audioMode == AudioMode.AudioListener)
+        {
+            SendAudioListenerData(data, channels);
+        }
+        else if (_useVirtualSpeakerListeners)
+        {
+            SendCustomSpeakersData();
+        }
+    }
+    
+    private void SendCustomSpeakersData()
+    {
+        var mixedAudio = VirtualAudio.GetMixedAudio(out int samplesCount, _listenerPosition, useCameraPositionForVirtualAttenuation);
+        int channels = mixedAudio.Count;
+        
+        unsafe
+        {
+            bool settingsChanged = false;
+            int tempSamples = samplesCount;
+
+            if (tempSamples != numSamples)
+            {
+                settingsChanged = true;
+                numSamples = tempSamples;
+                
+            }
+
+            if (channels != numChannels)
+            {
+                settingsChanged = true;
+                numChannels = channels;
+            }
+
+            if (settingsChanged)
+            {
+                System.Array.Resize<float>(ref samples, numSamples * numChannels);
+                UpdateAudioMetaData();
+            }
+
+            for (int ch = 0; ch < numChannels; ch++)
+            {
+                for (int i = 0; i < numSamples; i++)
+                {
+                    samples[numSamples * ch + i] = mixedAudio[ch][i];
+                }
+            }
+
+            fixed (float* p = samples)
+            {
+                var frame = new Interop.AudioFrame
+                {
+                    SampleRate = sampleRate,
+                    NoChannels = channels,
+                    NoSamples = numSamples,
+                    ChannelStrideInBytes = numSamples * sizeof(float),
+                    Data = (System.IntPtr)p
+                };
+                
+                frame._Metadata = _metaDataPtr;
+
+                if (_send != null)
+                {
+                    _send.SendAudio(frame);
+                }
+            }
+        }
+    }
+
+    private void UpdateAudioMetaData()
+    {
+        /*var xmlMeta = new XmlDocument();
+        // Write in xmlMeta all Speaker positions
+        var root = xmlMeta.CreateElement("VirtualSpeakers");
+        var listenerPosition = transform.position;
+        //foreach (var speaker in _virtualSpeakers)
+        foreach (var speaker in AudioData._speakers.OrderBy( s => s.channelMapping))
+        {
+            var speakerNode = xmlMeta.CreateElement("Speaker");
+            var relativePosition = speaker.transform.position - listenerPosition;
+            //var relativePosition = speaker.position - listenerPosition;
+            speakerNode.SetAttribute("x", relativePosition.x.ToString());
+            speakerNode.SetAttribute("y", relativePosition.y.ToString());
+            speakerNode.SetAttribute("z", relativePosition.z.ToString());
+            root.AppendChild(speakerNode);
+        }
+        xmlMeta.AppendChild(root);
+
+        if (_metaDataPtr != IntPtr.Zero)
+        {
+            Marshal.FreeCoTaskMem(_metaDataPtr);
+            _metaDataPtr = IntPtr.Zero;
+        }
+
+        string xml = null;
+        // Save xmlDoc to string xml
+        using (var stringWriter = new System.IO.StringWriter())
+        {
+            using (var xmlTextWriter = XmlWriter.Create(stringWriter))
+            {
+                xmlMeta.WriteTo(xmlTextWriter);
+            }
+            xml = stringWriter.ToString();
+        }
+        
+        _metaDataPtr = Marshal.StringToCoTaskMemAnsi(xml);    */
+    }
+
+    private void SendAudioListenerData(float[] data, int channels)
     {
         if (data.Length == 0 || channels == 0) return;
 
@@ -95,7 +281,7 @@ public sealed partial class NdiSender : MonoBehaviour
             {
                 for (int i = 0; i < numSamples; i++)
                 {
-                    samples[numSamples * ch + i] = data[i * numChannels];
+                    samples[numSamples * ch + i] = data[i * numChannels + ch];
                 }
             }
 
@@ -243,10 +429,44 @@ public sealed partial class NdiSender : MonoBehaviour
     #region Component state controller
 
     Camera _attachedCamera;
-
+    
+    
     // Component state reset without NDI object disposal
     internal void ResetState(bool willBeActive)
     {
+        _audioMode = audioMode;
+        int availableAudioChannels = Util.AudioChannels(AudioSettings.driverCapabilities);
+
+        ClearVirtualSpeakerListeners();
+        switch (audioMode)
+        {
+            case AudioMode.AudioListener:
+                break;
+            case AudioMode.TryOrForce5point1:
+                if (availableAudioChannels != 6)
+                    CreateAudioSetup_5point1();
+                break;
+            case AudioMode.TryOrForce7point1:
+                if (availableAudioChannels != 8)
+                    CreateAudioSetup_7point1();
+                break;
+            case AudioMode.ForceVirtual5point1:
+                CreateAudioSetup_5point1();
+                break;
+            case AudioMode.ForceVirtual7point1:
+                CreateAudioSetup_7point1();
+                break;
+            case AudioMode.TryOrForceQuad:
+                if (availableAudioChannels != 4)
+                    CreateAudioSetup_Quad();
+                break;
+            case AudioMode.ForceVirtualQuad:
+                CreateAudioSetup_Quad();
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
+        
         // Camera capture coroutine termination
         // We use this to kill only a single coroutine. It may sound like
         // overkill, but I think there is no side effect in doing so.
@@ -289,7 +509,15 @@ public sealed partial class NdiSender : MonoBehaviour
     // Component state reset with NDI object disposal
     internal void Restart(bool willBeActivate)
     {
+        
+        if (_metaDataPtr != IntPtr.Zero)
+        {
+            Marshal.FreeCoTaskMem(_metaDataPtr);
+            _metaDataPtr = IntPtr.Zero;
+        }
+        
         sampleRate = AudioSettings.outputSampleRate;
+        Debug.Log("Driver capabilties: " + AudioSettings.driverCapabilities);
         ResetState(willBeActivate);
         ReleaseSenderObjects();
     }
