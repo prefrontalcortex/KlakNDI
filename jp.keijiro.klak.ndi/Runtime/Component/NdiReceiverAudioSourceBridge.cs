@@ -37,9 +37,13 @@ namespace Klak.Ndi
 				{
 					var sampleRate = AudioSettings.GetConfiguration().sampleRate;
 					var dspBufferSize = AudioSettings.GetConfiguration().dspBufferSize;
-					_spatilizeHelperClip = AudioClip.Create("dummy", dspBufferSize, maxSystemChannels, sampleRate, false);
+					_spatilizeHelperClip = AudioClip.Create("dummy", dspBufferSize, 1, sampleRate, false);
 					_spatializedData = new float[dspBufferSize];
 					Array.Fill(_spatializedData, 1f);
+					for(int i = 0; i < _spatializedData.Length; i++)
+					{
+						_spatializedData[i] = 1;
+					}
 					_spatilizeHelperClip.SetData(_spatializedData, 0);
 					//_isSpatialized = true;
 				}
@@ -48,12 +52,11 @@ namespace Klak.Ndi
 				audioSource.clip = _spatilizeHelperClip;
 			}
 
+			audioSource.dopplerLevel = 0;
 			audioSource.Stop();
 			audioSource.Play();				
 		}
 		
-
-
 		// Automagically called by Unity when an AudioSource component is present on the same GameObject
 		private void OnAudioFilterRead(float[] data, int channels)
 		{
@@ -71,7 +74,12 @@ namespace Klak.Ndi
 						_rcvData = new float[needed];
 					}
 					
-					_handler.HandleAudioFilterRead(_rcvData, _maxChannels);
+					if (!_handler.HandleAudioFilterRead(_rcvData, _maxChannels))
+					{
+						Array.Fill(data, 0f);
+						return;
+					}
+					
 					_lastFrameUpdate = AudioSettings.dspTime;
 				}
 
@@ -90,15 +98,15 @@ namespace Klak.Ndi
 
 						for (int j = 0; j < channels; j++)
 						{
-							data[i+j] = _noSpatializerPlugin ? sample * data[i+j] : sample;
-							
+							data[i+j] = _noSpatializerPlugin ? sample * Mathf.Abs(data[i+j]) : sample;
 						}
 					}
 				}
 			}
 			else
 			{
-				_handler.HandleAudioFilterRead(data, channels);
+				if (!_handler.HandleAudioFilterRead(data, channels))
+					Array.Fill(data, 0f);
 			}
 			
 		}

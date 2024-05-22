@@ -1,7 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Xml;
 using CircularBuffer;
 using Klak.Ndi.Audio;
 using UnityEngine;
@@ -101,14 +101,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		{
 			
 			//ReadAudioMetaData(audio.Metadata);
-			if (_receivedAudioChannels != _virtualSpeakersCount && _receivedAudioChannels != _expectedAudioChannels)
-			{
-				DestroyAudioSourceBridge();
-				CreateVirtualSpeakers(_receivedAudioChannels);
-			}
+			ResetAudioSpeakerSetup();
 			_settingsChanged = false;
 		}
-
 	}
 
 	void OnDestroy()
@@ -362,7 +357,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		if ((object)_audioSourceBridge != null)
 			return;
 
-		HandleAudioFilterRead(data, channels);
+		if (!HandleAudioFilterRead(data, channels))
+			Array.Fill(data, 0f);
 	}
 
 	internal void HandleAudioSourceBridgeOnDestroy()
@@ -372,7 +368,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		DestroyAudioSourceBridge();
 	}
 
-	internal void HandleAudioFilterRead(float[] data, int channels)
+	internal bool HandleAudioFilterRead(float[] data, int channels)
 	{
 		//Debug.Log(" READ DATA: "+data.Length + " "+AudioSettings.dspTime);
 		int length = data.Length;
@@ -387,7 +383,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			// Early out if not enough in the buffer still
 			if (m_bWaitForBufferFill)
 			{
-				return;
+				return false;
 			}
 		}
 
@@ -413,7 +409,10 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		if ( m_bWaitForBufferFill && !bPreviousWaitForBufferFill )
 		{
 			Debug.LogWarning($"Audio buffer underrun: OnAudioFilterRead: data.Length = {data.Length} | audioBuffer.Size = {iAudioBufferSize} | audioBuffer.Capacity = {bufferCapacity}", this);
+			return false;
 		}
+
+		return true;
 	}
 	
 	void DestroyAllVirtualSpeakers()
@@ -430,7 +429,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	void CreateVirtualSpeakersQuad()
 	{
 		float dist = virtualSpeakerDistances;
-		for (int i = 0; i < 6; i++)
+		for (int i = 0; i < 4; i++)
 		{
 			var speaker = new VirtualSpeakers();
 
@@ -498,40 +497,91 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			_virtualSpeakers.Add(speaker);
 		}
 	}
+
+	void ResetAudioSpeakerSetup()
+	{
+		DestroyAudioSourceBridge();
+		DestroyAllVirtualSpeakers();
+		var audioConfiguration = AudioSettings.GetConfiguration();
+		if (_expectedAudioChannels == 2 && _receivedAudioChannels == 2)
+		{
+			Debug.Log("Setting Speaker Mode to Stereo");
+			audioConfiguration.speakerMode = AudioSpeakerMode.Stereo;
+			AudioSettings.Reset(audioConfiguration);
+			CheckAudioSource();
+			return;
+		}
+		if (_expectedAudioChannels == 4 && _receivedAudioChannels == 4)
+		{
+			Debug.Log("Setting Speaker Mode to Quad");
+			audioConfiguration.speakerMode = AudioSpeakerMode.Quad;
+			AudioSettings.Reset(audioConfiguration);
+			CheckAudioSource();
+			return;
+		}
+		if (_expectedAudioChannels == 6 && _receivedAudioChannels == 4)
+		{
+			Debug.Log("Setting Speaker Mode to 5.1");
+			audioConfiguration.speakerMode = AudioSpeakerMode.Mode5point1;
+			AudioSettings.Reset(audioConfiguration);
+			CheckAudioSource();
+			return;
+		}
+		if (_expectedAudioChannels == 8 && _receivedAudioChannels == 4)
+		{
+			Debug.Log("Setting Speaker Mode to 7.1");
+			audioConfiguration.speakerMode = AudioSpeakerMode.Mode7point1;
+			AudioSettings.Reset(audioConfiguration);
+			CheckAudioSource();
+			return;
+		}
+
+		if (!_createVirtualSpeakers && _expectedAudioChannels < _receivedAudioChannels)
+		{
+			Debug.Log("Received more audio channels than supported with the current audio device. You can enable createVirtualSpeakers for better support. Received channel count: "+_receivedAudioChannels);
+			switch (_expectedAudioChannels)
+			{
+				case 2: audioConfiguration.speakerMode = AudioSpeakerMode.Stereo; break;
+				case 4: audioConfiguration.speakerMode = AudioSpeakerMode.Quad; break;
+				case 6: audioConfiguration.speakerMode = AudioSpeakerMode.Mode5point1; break;
+				case 8: audioConfiguration.speakerMode = AudioSpeakerMode.Mode7point1; break;
+			}
+			AudioSettings.Reset(audioConfiguration);
+			CheckAudioSource();
+			return;
+		}
+		
+		Debug.Log("Try setting Speaker Mode to Virtual Speakers. Received channel count: "+_receivedAudioChannels);
+
+		CreateVirtualSpeakers(_receivedAudioChannels);
+	}
 	
 	void CreateVirtualSpeakers(int channelNo)
 	{
 		DestroyAllVirtualSpeakers();
+
 		_usingVirtualSpeakers = true;
-
-		if (channelNo == 4)
-		{
-			CreateVirtualSpeakersQuad();
-		}
 		
-		if (channelNo == 5 + 1)
-		{
+		if (channelNo == 4)
+			CreateVirtualSpeakersQuad();
+		else if (channelNo == 6)
 			CreateVirtualSpeakers5point1();
-		}
-
-		if (channelNo == 7 + 1)
+		else if (channelNo == 8)
+			CreateVirtualSpeakers7point1();
+		else
 		{
-			CreateVirtualSpeakers7point1();	
+			_usingVirtualSpeakers = false;
+			_virtualSpeakersCount = 0;
+			Debug.LogWarning($"Virtual speakers not supported for {channelNo} channels.", this);
+			return;
 		}
 
 		_virtualSpeakersCount = _virtualSpeakers.Count;
-
-		if (_virtualSpeakersCount == 0)
-		{
-			Debug.LogWarning($"No virtual speakers created. {channelNo} channels not supported. Fallback to native AudioSource.", this);
-			_usingVirtualSpeakers = false;
-			_virtualSpeakersCount = 0;
-		}
 	}
 	
 	void ReadAudioMetaData(string metadata)
 	{
-		return;
+		/*
 		var xmlMeta = new XmlDocument();
 		xmlMeta.LoadXml(metadata);
 		
@@ -569,10 +619,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				}
 			}
 		}
-		
-		
+		*/
 	}
-
 
 	void FillAudioBuffer(Interop.AudioFrame audio)
 	{
@@ -590,7 +638,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				Debug.LogWarning($"Audio sample rate does not match. Expected {_expectedAudioSampleRate} but received {_receivedAudioSampleRate}.", this);
 		}
 
-		if(audio.NoChannels != _virtualSpeakersCount)
+		if((_usingVirtualSpeakers && audio.NoChannels != _virtualSpeakersCount) || _receivedAudioChannels != audio.NoChannels)
 		{
 			settingsChanged = true;
 			_receivedAudioChannels = audio.NoChannels;
@@ -625,7 +673,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			// allocate native array to copy interleaved data into
 			unsafe
 			{
-				if (m_aTempAudioPullBuffer.Length < sizeInBytes)
+				if (!m_aTempAudioPullBuffer.IsCreated || m_aTempAudioPullBuffer.Length < sizeInBytes)
 				{
 					if (m_aTempAudioPullBuffer.IsCreated)
 						m_aTempAudioPullBuffer.Dispose();
