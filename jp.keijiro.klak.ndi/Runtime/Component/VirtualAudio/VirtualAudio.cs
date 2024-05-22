@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace Klak.Ndi.Audio
@@ -17,15 +18,13 @@ namespace Klak.Ndi.Audio
             public AudioRolloffMode rolloffMode;
             public AnimationCurve customRolloffCurve;
             public AnimationCurve spatialBlendCurve;
+            public int forceToChannel;
         }
         
         public class AudioSourceData
         {
             internal int id;
             public float[] data;
-
-            public int forceToChannel = -1;
-            
             public AudioSourceSettings settings;
         }
 
@@ -62,8 +61,6 @@ namespace Klak.Ndi.Audio
         
         private static readonly object _speakerLockObject = new object();
         private static readonly object _audioSourceLockObject = new object();
-
-
         
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Init()
@@ -96,13 +93,12 @@ namespace Klak.Ndi.Audio
             }
         }
 
-        public static AudioSourceData RegisterAudioSourceChannel(int forceToChannel = -1)
+        public static AudioSourceData RegisterAudioSourceChannel()
         {
             var newData = new AudioSourceData
             {
                 id = _audioSourceNextId++
             };
-            newData.forceToChannel = forceToChannel;
 
             lock (_audioSourceLockObject)
                 _audioSourcesData.Add(newData.id, newData);
@@ -143,7 +139,6 @@ namespace Klak.Ndi.Audio
             _attenuationWeights.Clear();
             _spatialBlends.Clear();
             _speakerDotProducts.Clear();
-            _weights.Clear();
             _distances.Clear();
 
             List<float[]> result;
@@ -174,7 +169,7 @@ namespace Klak.Ndi.Audio
 
                 foreach (var audioSource in _audioSourcesData)
                 {
-                    int forceToChannel = audioSource.Value.forceToChannel;
+                    int forceToChannel = audioSource.Value.settings.forceToChannel;
 
                     if (forceToChannel != -1)
                     {
@@ -200,6 +195,7 @@ namespace Klak.Ndi.Audio
                     _speakerDotProducts.Clear();
                     _attenuationWeights.Clear();
                     _spatialBlends.Clear();
+                    _weights.Clear();
 
                     var audioSourceSettings = audioSource.Value.settings;
 
@@ -208,7 +204,7 @@ namespace Klak.Ndi.Audio
                         Vector3 centerToSpeakerDir = speaker.position.normalized;
                         // Dot product for speaker direction weighting
                         float dot = Vector3.Dot(centerToSourceDir, centerToSpeakerDir);
-                        _speakerDotProducts.Add(Mathf.Clamp01(dot - speaker.directionDotSubtract));
+                        _speakerDotProducts.Add(Mathf.Clamp01(dot - speaker.directionDotSubtract + centerWeight));
 
                         float distanceAS_SPK =
                             Vector3.Distance(
@@ -234,9 +230,9 @@ namespace Klak.Ndi.Audio
                     {
                         float volume = _attenuationWeights[i] * audioSourceSettings.volume;
                         float dotWeight = volume * _speakerDotProducts[i];
-                        float weight = Mathf.Clamp01(dotWeight + centerWeight);
+                        float weight = Mathf.Clamp01(dotWeight);
                         float spatial = Mathf.Lerp(weight, 1f, 1f - _spatialBlends[i]);
-                        _weights.Add(spatial * _listenerDatas[i].volume * 2f);
+                        _weights.Add(spatial * _listenerDatas[i].volume * 1f);
                     }
 
                     for (int iSpeaker = 0; iSpeaker < _listenerDatas.Count; iSpeaker++)
@@ -287,26 +283,19 @@ namespace Klak.Ndi.Audio
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static float LogAttenuation(float distance, float minDistance, float maxDistance)
         {
             float ratio = distance / minDistance;
             return distance <= minDistance ? 1 : (1.0f / (1.0f + 2f * Mathf.Log(ratio)));
         }
 
-        internal static float MixSample(float sample1, float sample2)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float MixSample(float sample1, float sample2)
         {
-            if (sample1 > 0 && sample2 > 0)
-            {
-                return Mathf.Max(sample1, sample2);
-            }
-            else if (sample1 < 0 && sample2 < 0)
-            {
-                return Mathf.Min(sample1, sample2);
-            }
-            else
-            {
-                return sample1 + sample2;
-            }
+            float s1 = Mathf.Sign(sample1);
+            return sample1 + sample2 + (((sample1 * sample2) * s1 * -1f) * ((s1 + Mathf.Sign(sample2) / 2f * s1)));
+
         }
         #endregion
     }
