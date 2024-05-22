@@ -6,6 +6,7 @@ namespace Klak.Ndi.Audio
     [RequireComponent(typeof(AudioSource))]
     public class AudioSourceListener : MonoBehaviour
     {
+        // TODO: support multiple channel audio files
 
         [Serializable]
         public struct AdditionalSettings
@@ -44,11 +45,22 @@ namespace Klak.Ndi.Audio
                 // Mix all channels into one
                 
                 float v = 0;
+                int nonNullChannels = 0;
                 for (int c = 0; c < channels; c++)
                 {
-                    v = VirtualAudio.MixSample(v, data[i + c]);
+                    v += data[i + c];
+                    if (data[i + c] != 0)
+                        nonNullChannels++;
                 }
 
+                if (nonNullChannels == 0)
+                    v = 0f;
+                else
+                    v /= nonNullChannels;
+
+                for (int c = 0; c < channels; c++)
+                    data[i+c] = v;
+                
                 _audioSourceData.data[sampleIndex] = v;
                 
                 sampleIndex++;
@@ -58,7 +70,6 @@ namespace Klak.Ndi.Audio
             {
                 _audioSourceData.settings = _TmpSettings;
             }
-            
         }
 
         private void Update()
@@ -66,6 +77,7 @@ namespace Klak.Ndi.Audio
             _TmpSettings.position = transform.position;
             _TmpSettings.spatialBlend = _audioSource.spatialBlend;
             _TmpSettings.volume = _audioSource.volume;
+            _TmpSettings.forceToChannel = additionalSettings.forceToChannel ? additionalSettings.channel : -1;
         }
 
         private void Awake()
@@ -76,7 +88,13 @@ namespace Klak.Ndi.Audio
                 Debug.LogError("AudioSourceListener requires an AudioSource component.");
                 enabled = false;
             }
+
+            _TmpSettings.position = transform.position;
+            _TmpSettings.spatialBlend = _audioSource.spatialBlend;
+            _TmpSettings.volume = _audioSource.volume;
+            _TmpSettings.forceToChannel = additionalSettings.forceToChannel ? additionalSettings.channel : -1;
             
+            _audioSource.bypassListenerEffects = false;
             _TmpSettings.minDistance = _audioSource.minDistance;
             _TmpSettings.maxDistance = _audioSource.maxDistance;
             _TmpSettings.rolloffMode = _audioSource.rolloffMode;
@@ -95,7 +113,7 @@ namespace Klak.Ndi.Audio
             
             lock (_lockObj)
             {
-                _audioSourceData = VirtualAudio.RegisterAudioSourceChannel( additionalSettings.forceToChannel ? additionalSettings.channel : -1);
+                _audioSourceData = VirtualAudio.RegisterAudioSourceChannel();
             }
         }
         
