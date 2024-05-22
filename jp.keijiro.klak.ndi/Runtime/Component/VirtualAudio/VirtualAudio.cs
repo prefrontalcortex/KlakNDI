@@ -222,6 +222,17 @@ namespace Klak.Ndi.Audio
                         _attenuationWeights.Add((distanceRollOffWeight));
                     }
 
+                    
+                    if (distanceFromCamera < 4f)
+                    {
+                        var blendCenter = Mathf.InverseLerp( 2f, 4f, distanceFromCamera);
+                        
+                        for (int i = 0; i < _speakerDotProducts.Count; i++)
+                        {
+                            _speakerDotProducts[i] = Mathf.Lerp( _listenerDatas[i].volume, _speakerDotProducts[i], blendCenter);
+                        }
+                    }
+                    
                     float dotSum = _speakerDotProducts.Sum();
                     for (int i = 0; i < _speakerDotProducts.Count; i++)
                         _speakerDotProducts[i] = Mathf.Clamp01(_speakerDotProducts[i] / dotSum);
