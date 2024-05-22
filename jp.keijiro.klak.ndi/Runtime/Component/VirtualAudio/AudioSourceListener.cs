@@ -17,12 +17,16 @@ namespace Klak.Ndi.Audio
         
         public AdditionalSettings additionalSettings;
         
+        [SerializeField] private bool _showDebugGizmos = false;
+        
         private AudioSource _audioSource;
         private VirtualAudio.AudioSourceData _audioSourceData;
         
         private VirtualAudio.AudioSourceSettings _TmpSettings;
 
         private object _lockObj = new object();
+
+        private float[] listenerWeights;
         
         private void OnAudioFilterRead(float[] data, int channels)
         {
@@ -68,6 +72,7 @@ namespace Klak.Ndi.Audio
             
             lock (_lockObj)
             {
+                listenerWeights = _audioSourceData.lastListenerWeights;
                 _audioSourceData.settings = _TmpSettings;
             }
         }
@@ -78,6 +83,50 @@ namespace Klak.Ndi.Audio
             _TmpSettings.spatialBlend = _audioSource.spatialBlend;
             _TmpSettings.volume = _audioSource.volume;
             _TmpSettings.forceToChannel = additionalSettings.forceToChannel ? additionalSettings.channel : -1;
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (!_showDebugGizmos || !Application.isPlaying)
+                return;
+
+            float[] tmpListenerWeights = null;
+            lock (_lockObj)
+            {
+                tmpListenerWeights = listenerWeights;
+            }
+
+            if (tmpListenerWeights == null)
+                return;
+
+            if (!Camera.main)
+                return;
+            
+            var listenersPositions = VirtualAudio.GetListenersPositions();
+            if (listenersPositions.Length != tmpListenerWeights.Length)
+                return;
+
+            var camPos = Camera.main.transform.position;
+
+            for (int i = 0; i < listenersPositions.Length; i++)
+            {
+                Gizmos.color = tmpListenerWeights[i] > 0 ? new Color(0, 1, 0, 0.5f) : new Color(1, 0, 0, 0.5f);
+                listenersPositions[i] = listenersPositions[i] + camPos;
+                Gizmos.DrawWireSphere( listenersPositions[i], 1f);
+            }
+            
+            for (int i = 0; i < tmpListenerWeights.Length; i++)
+            {
+                if (tmpListenerWeights[i] > 0)
+                {
+                    Gizmos.color = Color.black;
+                    Gizmos.DrawLine( listenersPositions[i], transform.position);
+                    Gizmos.color = Color.green;
+                    var dir =  listenersPositions[i] - transform.position;
+                    Gizmos.DrawLine( transform.position, transform.position + dir * listenerWeights[i]);
+                    
+                }
+            }
         }
 
         private void Awake()

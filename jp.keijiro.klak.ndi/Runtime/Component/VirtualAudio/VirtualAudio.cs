@@ -26,6 +26,8 @@ namespace Klak.Ndi.Audio
             internal int id;
             public float[] data;
             public AudioSourceSettings settings;
+
+            public float[] lastListenerWeights;
         }
 
         private class ListenerData
@@ -76,6 +78,15 @@ namespace Klak.Ndi.Audio
                 _listenerDatas.Clear();
             }
         }
+        
+        public static Vector3[] GetListenersPositions()
+        {
+            lock (_speakerLockObject)
+            {
+                return _listenerDatas.Select( l => l.position).ToArray();
+            }
+        }
+
 
         public static void AddListener(Vector3 relativePosition, float dotDirectionAdjust = 0.5f, float volume = 1f)
         {
@@ -245,6 +256,7 @@ namespace Klak.Ndi.Audio
                         float spatial = Mathf.Lerp(weight, 1f, 1f - _spatialBlends[i]);
                         _weights.Add(spatial * _listenerDatas[i].volume * 1f);
                     }
+                    audioSource.Value.lastListenerWeights = _weights.ToArray();
 
                     for (int iSpeaker = 0; iSpeaker < _listenerDatas.Count; iSpeaker++)
                     {
