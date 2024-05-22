@@ -22,6 +22,7 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
     AutoProperty _targetRenderer;
     AutoProperty _targetMaterialProperty;
     AutoProperty _audioSource;
+    AutoProperty _createVirtualSpeakers;
 
     #pragma warning restore
 
@@ -110,6 +111,7 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
 
         EditorGUI.BeginChangeCheck();
         EditorGUILayout.PropertyField(_audioSource);
+        EditorGUILayout.PropertyField(_createVirtualSpeakers);
         var audioSourceChanged = EditorGUI.EndChangeCheck();
 
         serializedObject.ApplyModifiedProperties();
