@@ -292,15 +292,12 @@ namespace Klak.Ndi.Audio
                 case AudioRolloffMode.Logarithmic:
                     return LogAttenuation(distance, audioSettings.minDistance,
                         audioSettings.maxDistance);
-                    break;
                 case AudioRolloffMode.Linear:
                     return Mathf.Clamp01(Mathf.Lerp(1f, 0f,
                         Mathf.InverseLerp(audioSettings.minDistance, audioSettings.maxDistance, distance)));
-                    break;
                 case AudioRolloffMode.Custom:
                     return
                         audioSettings.customRolloffCurve.Evaluate(distance / audioSettings.maxDistance);
-                    break;
                 default:
                     return 0;
             }

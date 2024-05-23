@@ -48,7 +48,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
     
     public AudioSource audioSource
       { get => _audioSource;
-        set { _audioSource = value; CheckAudioSource(); } }
+        set { _audioSource = value; CheckPassthroughAudioSource(); } }
 
     #endregion
 
