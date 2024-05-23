@@ -218,7 +218,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private CircularBuffer<float>			audioBuffer = new CircularBuffer<float>(BUFFER_SIZE);
 	//
 	private bool							m_bWaitForBufferFill = true;
-	private const int						m_iMinBufferAheadFrames = 4;
+	private const int						m_iMinBufferAheadFrames = 8;
 	//
 	private NativeArray<byte>				m_aTempAudioPullBuffer;
 	private Interop.AudioFrameInterleaved	interleavedAudio = new Interop.AudioFrameInterleaved();
@@ -375,6 +375,23 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			_virtualSpeakers.RemoveAt(0);
 		}
 	}
+
+	void CreateVirutalSpeaker32Array()
+	{
+		float dist = virtualSpeakerDistances;
+		for (int i = 0; i < 32; i++)
+		{
+			var speaker = new VirtualSpeakers();
+
+			float angle = i * Mathf.PI * 2 / 32;
+			float x = Mathf.Cos(angle) * dist;
+			float z = Mathf.Sin(angle) * dist;
+			
+			speaker.CreateGameObjectWithAudioSource(transform, new Vector3(x, 0, z));
+			speaker.CreateAudioSourceBridge(this, i, 32, _expectedAudioChannels);
+			_virtualSpeakers.Add(speaker);		
+		}
+	}
 	
 	void CreateVirtualSpeakersQuad()
 	{
@@ -518,6 +535,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			CreateVirtualSpeakers5point1();
 		else if (channelNo == 8)
 			CreateVirtualSpeakers7point1();
+		else if (channelNo == 32)
+			CreateVirutalSpeaker32Array();
 		else
 		{
 			_usingVirtualSpeakers = false;
