@@ -257,6 +257,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			newSource.transform.SetParent(transform, false);
 			newSource.hideFlags = HideFlags.DontSave;
 			_hasAudioSource = true;
+			_audioSource = newSource;
 		}
 		
 		// Make sure it is playing so OnAudioFilterRead gets called by Unity
@@ -267,7 +268,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		
 		// Create a bridge component if the AudioSource is not on this GameObject so we can feed audio samples to it.
 		_audioSourceBridge = _audioSource.GetComponent<AudioSourceBridge>();
-		if(_audioSourceBridge == null)
+		if (!_audioSourceBridge)
 			_audioSourceBridge = _audioSource.gameObject.AddComponent<AudioSourceBridge>();
 		
 		_audioSourceBridge.Init(false, _expectedAudioChannels);
