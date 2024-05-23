@@ -490,6 +490,9 @@ public sealed partial class NdiSender : MonoBehaviour
             case AudioMode.Virtual7Point1:
                 CreateAudioSetup_7point1();
                 break;
+            case AudioMode.Virtual32Array:
+                CreateAudioSetup_32Array();
+                break;
             default:
                 throw new ArgumentOutOfRangeException();
         }
