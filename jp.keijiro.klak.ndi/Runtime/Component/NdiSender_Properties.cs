@@ -9,7 +9,17 @@ public sealed partial class NdiSender : MonoBehaviour
 {
     #region NDI source settings
 
-    public enum AudioMode { AudioListener, TryOrForceQuad, TryOrForce5point1, TryOrForce7point1, ForceVirtualQuad, ForceVirtual5point1, ForceVirtual7point1 }
+    public enum AudioMode { 
+        AudioListener, 
+        /*
+        TryOrForceQuad, 
+        TryOrForce5point1, 
+        TryOrForce7point1,
+        */ 
+        VirtualQuad,
+        Virtual5Point1, 
+        Virtual7Point1
+    }
     
     [SerializeField] string _ndiName = "NDI Sender";
     string _ndiNameRuntime;
