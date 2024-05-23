@@ -118,7 +118,7 @@ namespace Klak.Ndi
 
 			_isDestroyed = true;
 
-			_handler?.HandleAudioSourceBridgeOnDestroy();
+			if (_handler) _handler.HandleAudioSourceBridgeOnDestroy();
 		}
 	}
 	
