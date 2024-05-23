@@ -226,7 +226,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private float[]							m_aTempSamplesArray = new float[ 1024 * 32 ];
 	
 	private int _expectedAudioSampleRate;
-	private int _expectedAudioChannels;
+	private int _systemAvailableAudioChannels;
 
 	private int _receivedAudioSampleRate;
 	private int _receivedAudioChannels;
@@ -271,7 +271,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		if (!_audioSourceBridge)
 			_audioSourceBridge = _audioSource.gameObject.AddComponent<AudioSourceBridge>();
 		
-		_audioSourceBridge.Init(false, _expectedAudioChannels);
+		_audioSourceBridge.Init(false, _systemAvailableAudioChannels);
 		_audioSourceBridge._handler = this;
 	}
 
@@ -296,7 +296,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private void UpdateAudioExpectations()
 	{
 		_expectedAudioSampleRate = AudioSettings.outputSampleRate;
-		_expectedAudioChannels = Util.AudioChannels(AudioSettings.driverCapabilities);
+		_systemAvailableAudioChannels = Util.AudioChannels(AudioSettings.driverCapabilities);
 	}
 
 	// Automagically called by Unity when an AudioSource component is present on the same GameObject
@@ -377,19 +377,19 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		}
 	}
 
-	void CreateVirutalSpeaker32Array()
+	void CreateVirtualSpeakerCircle(int channelCount)
 	{
 		float dist = virtualSpeakerDistances;
-		for (int i = 0; i < 32; i++)
+		for (int i = 0; i < channelCount; i++)
 		{
 			var speaker = new VirtualSpeakers();
 
-			float angle = i * Mathf.PI * 2 / 32;
+			float angle = i * Mathf.PI * 2 / channelCount;
 			float x = Mathf.Cos(angle) * dist;
 			float z = Mathf.Sin(angle) * dist;
 			
 			speaker.CreateGameObjectWithAudioSource(transform, new Vector3(x, 0, z));
-			speaker.CreateAudioSourceBridge(this, i, 32, _expectedAudioChannels);
+			speaker.CreateAudioSourceBridge(this, i, channelCount, _systemAvailableAudioChannels);
 			_virtualSpeakers.Add(speaker);		
 		}
 	}
@@ -411,7 +411,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			}
 			
 			speaker.CreateGameObjectWithAudioSource(transform, position);
-			speaker.CreateAudioSourceBridge(this, i, 4, _expectedAudioChannels);
+			speaker.CreateAudioSourceBridge(this, i, 4, _systemAvailableAudioChannels);
 			_virtualSpeakers.Add(speaker);
 		}		
 	}	
@@ -435,7 +435,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			}
 			
 			speaker.CreateGameObjectWithAudioSource(transform, position);
-			speaker.CreateAudioSourceBridge(this, i, 6, _expectedAudioChannels);
+			speaker.CreateAudioSourceBridge(this, i, 6, _systemAvailableAudioChannels);
 			_virtualSpeakers.Add(speaker);
 		}		
 	}
@@ -461,7 +461,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			}
 			
 			speaker.CreateGameObjectWithAudioSource(transform, position);
-			speaker.CreateAudioSourceBridge(this, i, 8, _expectedAudioChannels);
+			speaker.CreateAudioSourceBridge(this, i, 8, _systemAvailableAudioChannels);
 			_virtualSpeakers.Add(speaker);
 		}
 	}
@@ -471,7 +471,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		DestroyAudioSourceBridge();
 		DestroyAllVirtualSpeakers();
 		var audioConfiguration = AudioSettings.GetConfiguration();
-		if (_expectedAudioChannels == 2 && _receivedAudioChannels == 2)
+		if (_systemAvailableAudioChannels == 2 && _receivedAudioChannels == 2)
 		{
 			Debug.Log("Setting Speaker Mode to Stereo");
 			audioConfiguration.speakerMode = AudioSpeakerMode.Stereo;
@@ -479,7 +479,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			CheckPassthroughAudioSource();
 			return;
 		}
-		if (_expectedAudioChannels == 4 && _receivedAudioChannels == 4)
+		if (_systemAvailableAudioChannels == 4 && _receivedAudioChannels == 4)
 		{
 			Debug.Log("Setting Speaker Mode to Quad");
 			audioConfiguration.speakerMode = AudioSpeakerMode.Quad;
@@ -487,7 +487,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			CheckPassthroughAudioSource();
 			return;
 		}
-		if (_expectedAudioChannels == 6 && _receivedAudioChannels == 4)
+		if (_systemAvailableAudioChannels == 6 && _receivedAudioChannels == 4)
 		{
 			Debug.Log("Setting Speaker Mode to 5.1");
 			audioConfiguration.speakerMode = AudioSpeakerMode.Mode5point1;
@@ -495,7 +495,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			CheckPassthroughAudioSource();
 			return;
 		}
-		if (_expectedAudioChannels == 8 && _receivedAudioChannels == 4)
+		if (_systemAvailableAudioChannels == 8 && _receivedAudioChannels == 4)
 		{
 			Debug.Log("Setting Speaker Mode to 7.1");
 			audioConfiguration.speakerMode = AudioSpeakerMode.Mode7point1;
@@ -504,22 +504,10 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			return;
 		}
 
-		if (!_createVirtualSpeakers && _expectedAudioChannels < _receivedAudioChannels)
-		{
-			Debug.Log("Received more audio channels than supported with the current audio device. You can enable createVirtualSpeakers for better support. Received channel count: "+_receivedAudioChannels);
-			switch (_expectedAudioChannels)
-			{
-				case 2: audioConfiguration.speakerMode = AudioSpeakerMode.Stereo; break;
-				case 4: audioConfiguration.speakerMode = AudioSpeakerMode.Quad; break;
-				case 6: audioConfiguration.speakerMode = AudioSpeakerMode.Mode5point1; break;
-				case 8: audioConfiguration.speakerMode = AudioSpeakerMode.Mode7point1; break;
-			}
-			AudioSettings.Reset(audioConfiguration);
-			CheckPassthroughAudioSource();
-			return;
-		}
+		if (!_createVirtualSpeakers && _systemAvailableAudioChannels < _receivedAudioChannels)
+			Debug.Log("Received more audio channels than supported with the current audio device. Virtual Speakers will be created.");
 		
-		Debug.Log("Try setting Speaker Mode to Virtual Speakers. Received channel count: "+_receivedAudioChannels);
+		Debug.Log("Try setting Speaker Mode to Virtual Speakers. Received channel count: " + _receivedAudioChannels + ". System available channel count: " + _systemAvailableAudioChannels);
 
 		CreateVirtualSpeakers(_receivedAudioChannels);
 	}
@@ -536,14 +524,10 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			CreateVirtualSpeakers5point1();
 		else if (channelNo == 8)
 			CreateVirtualSpeakers7point1();
-		else if (channelNo == 32)
-			CreateVirutalSpeaker32Array();
 		else
 		{
-			_usingVirtualSpeakers = false;
-			_virtualSpeakersCount = 0;
-			Debug.LogWarning($"Virtual speakers not supported for {channelNo} channels.", this);
-			return;
+			Debug.LogWarning($"No configuration found for {channelNo} channels. Creating virtual speaker circle arrangement.", this);
+			CreateVirtualSpeakerCircle(channelNo);
 		}
 
 		_virtualSpeakersCount = _virtualSpeakers.Count;
@@ -612,8 +596,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		{
 			settingsChanged = true;
 			_receivedAudioChannels = audio.NoChannels;
-			if(_receivedAudioChannels != _expectedAudioChannels)
-				Debug.LogWarning($"Audio channel count does not match. Expected {_expectedAudioChannels} but received {_receivedAudioChannels}.", this);
+			if(_receivedAudioChannels != _systemAvailableAudioChannels)
+				Debug.LogWarning($"Audio channel count does not match. Expected {_systemAvailableAudioChannels} but received {_receivedAudioChannels}.", this);
 		}
 
 		if (audio.Metadata != null)
@@ -656,7 +640,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				{
 					// Convert from float planar to float interleaved audio
 					_recv.AudioFrameToInterleaved(ref audio, ref interleavedAudio);
-					int channels = _usingVirtualSpeakers ? _virtualSpeakersCount : _expectedAudioChannels;
+					int channels = _usingVirtualSpeakers ? _virtualSpeakersCount : _systemAvailableAudioChannels;
 
 					totalSamples = interleavedAudio.NoSamples * channels;
 					void* audioDataPtr = interleavedAudio.Data.ToPointer();
@@ -687,7 +671,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				var needsToResample = resamplingRate != 1;
 				var neededSamples = needsToResample ? (int)(audio.NoSamples / resamplingRate) : audio.NoSamples;
 
-				int channels = _usingVirtualSpeakers ? _virtualSpeakersCount : _expectedAudioChannels;
+				int channels = _usingVirtualSpeakers ? _virtualSpeakersCount : _systemAvailableAudioChannels;
 				totalSamples = neededSamples * channels;
 
 				for (int i = 0; i < neededSamples; i++)
