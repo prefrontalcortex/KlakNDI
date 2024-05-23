@@ -131,12 +131,13 @@ sealed class NdiSenderEditor : UnityEditor.Editor
             
             // get current spatializer: 
             var spatializer = AudioSettings.GetSpatializerPluginName();
-            if (spatializer != "Dummy Spatializer")
+            var spatializerExpectedName = "Dummy Spatializer (NDI)";
+            if (spatializer != spatializerExpectedName)
             {
                 EditorGUILayout.HelpBox("The Dummy Spatializer plugin is required in the Audio Settings to bypass any spatialized data modifications made by Unity.", MessageType.Error);
                 if (GUILayout.Button("Fix"))
                 {
-                    AudioSettings.SetSpatializerPluginName("Dummy Spatializer (NDI)");
+                    AudioSettings.SetSpatializerPluginName(spatializerExpectedName);
                 }   
             }
             EditorGUILayout.PropertyField(virtualListenerDistance);
