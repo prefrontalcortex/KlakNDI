@@ -547,7 +547,8 @@ public sealed partial class NdiSender : MonoBehaviour
         }
         
         sampleRate = AudioSettings.outputSampleRate;
-        Debug.Log("Driver capabilties: " + AudioSettings.driverCapabilities);
+        
+        // Debug.Log("Driver capabilties: " + AudioSettings.driverCapabilities);
         ResetState(willBeActivate);
         ReleaseSenderObjects();
     }
