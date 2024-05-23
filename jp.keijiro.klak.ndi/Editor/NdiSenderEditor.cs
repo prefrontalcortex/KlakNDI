@@ -63,38 +63,6 @@ sealed class NdiSenderEditor : UnityEditor.Editor
         if (_captureMethod.Target.hasMultipleDifferentValues ||
             _captureMethod.Target.enumValueIndex != (int)CaptureMethod.GameView)
             EditorGUILayout.DelayedTextField(_ndiName, Labels.NdiName);
-
-        EditorGUI.BeginChangeCheck(); 
-        EditorGUILayout.PropertyField(audioMode);
-        if (EditorGUI.EndChangeCheck())
-        {
-            if (audioMode.Target.enumValueIndex != (int)NdiSender.AudioMode.AudioListener && _audioSourcesInScene.Length == 0)
-            {
-                SearchForAudioSources();
-            }
-        }
-        var audioModeEnum = (NdiSender.AudioMode)audioMode.Target.enumValueIndex;
-        if (audioModeEnum != NdiSender.AudioMode.AudioListener)
-        {
-            if (audioModeEnum == NdiSender.AudioMode.TryOrForce5point1 ||
-                audioModeEnum == NdiSender.AudioMode.TryOrForce7point1 ||
-                audioModeEnum == NdiSender.AudioMode.TryOrForceQuad)
-            {
-                EditorGUILayout.HelpBox("If the audio device is not supporting quad/5.1/7.1, it will create virtual Audio Listener to emulate it.", MessageType.Info);
-            }
-            else
-            {
-                EditorGUILayout.HelpBox("This AudioMode will create virtual AudioListeners and is not using the Unity buildin spatializer and AudioListener.", MessageType.Info);
-            }
-            EditorGUILayout.HelpBox("Virtual AudioListeners does not supporting the AudioMixer. Each AudioSource needs the "+nameof(AudioSourceListener)+" Component, otherwise it will not be captured. "+ System.Environment.NewLine +
-                "Also the Dummy Spatializer Plugin is required in the Audio Settings to bypass any spatialized data modifcations made by Unity.", MessageType.Info);
-            EditorGUILayout.PropertyField(virtualListenerDistance);
-            EditorGUILayout.PropertyField(useCameraPositionForVirtualAttenuation);
-        }
-        else
-        {
-            EditorGUILayout.HelpBox("This AudioMode will capture all audio from the AudioListener. The channel amount depends on the audio device capabilities and the Unity Audio Settings.", MessageType.Info);
-        }
         
         // Keep Alpha
         EditorGUILayout.PropertyField(_keepAlpha);
@@ -116,6 +84,75 @@ sealed class NdiSenderEditor : UnityEditor.Editor
 
         EditorGUI.indentLevel--;
 
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("Audio Settings", EditorStyles.boldLabel);
+        
+        // Show system audio settings
+        int availableAudioChannels = Util.AudioChannels(AudioSettings.driverCapabilities);
+        var audioSettings = AudioSettings.GetConfiguration();
+        int currentAudioChannels = Util.AudioChannels(audioSettings.speakerMode);
+        
+        EditorGUILayout.LabelField("System Audio Channels", availableAudioChannels.ToString());
+        EditorGUI.BeginChangeCheck();
+        var newSetting = EditorGUILayout.EnumPopup("Unity Speaker Mode", audioSettings.speakerMode);
+        if (EditorGUI.EndChangeCheck())
+        {
+            audioSettings.speakerMode = (AudioSpeakerMode)newSetting;
+            AudioSettings.Reset(audioSettings);
+        }
+        
+        EditorGUI.BeginChangeCheck(); 
+        EditorGUILayout.PropertyField(audioMode, new GUIContent("Audio Send Mode"));
+        if (EditorGUI.EndChangeCheck())
+        {
+            if (audioMode.Target.enumValueIndex != (int)NdiSender.AudioMode.AudioListener && _audioSourcesInScene.Length == 0)
+            {
+                SearchForAudioSources();
+            }
+        }
+        var audioModeEnum = (NdiSender.AudioMode)audioMode.Target.enumValueIndex;
+        if (audioModeEnum != NdiSender.AudioMode.AudioListener)
+        {
+            /*
+            if (audioModeEnum == NdiSender.AudioMode.TryOrForce5point1 ||
+                audioModeEnum == NdiSender.AudioMode.TryOrForce7point1 ||
+                audioModeEnum == NdiSender.AudioMode.TryOrForceQuad)
+            {
+                EditorGUILayout.HelpBox("If the audio device is not supporting quad/5.1/7.1, it will create virtual Audio Listener to emulate it.", MessageType.Info);
+            }
+            else
+            */
+            {
+                EditorGUILayout.HelpBox("This AudioMode will create virtual AudioListeners and is not using the Unity builtin spatializer and AudioListener.", MessageType.Info);
+            }
+            EditorGUILayout.HelpBox(
+                "Virtual Audio Listeners do not support Unity's Audio Mixer. All Audio Sources with the " +
+                nameof(AudioSourceListener) + " component will be received by the Virtual Listeners.", MessageType.Info);
+            
+            // get current spatializer: 
+            var spatializer = AudioSettings.GetSpatializerPluginName();
+            if (spatializer != "Dummy Spatializer")
+            {
+                EditorGUILayout.HelpBox("The Dummy Spatializer plugin is required in the Audio Settings to bypass any spatialized data modifications made by Unity.", MessageType.Error);
+                if (GUILayout.Button("Fix"))
+                {
+                    AudioSettings.SetSpatializerPluginName("Dummy Spatializer (NDI)");
+                }   
+            }
+            EditorGUILayout.PropertyField(virtualListenerDistance);
+            EditorGUILayout.PropertyField(useCameraPositionForVirtualAttenuation);
+        }
+        else
+        {
+            if (availableAudioChannels != currentAudioChannels)
+            {
+                EditorGUILayout.HelpBox($"You have selected {audioSettings.speakerMode} ({currentAudioChannels} channels), but the current audio device supports {availableAudioChannels} channels.\nOnly {availableAudioChannels} will be sent. Select a virtual send mode if you want to transmit more channels.", MessageType.Warning);
+            }
+            else {
+                EditorGUILayout.HelpBox($"This AudioMode will capture all audio from the AudioListener.\nThe channel amount depends on the audio device capabilities and the Unity Audio Settings.\nWith your current settings, {currentAudioChannels} channels ({audioSettings.speakerMode}) will be sent.", MessageType.Info);
+            }
+        }
+        
         serializedObject.ApplyModifiedProperties();
 
         if (_audioSourcesInScene.Length > 0 && audioModeEnum != NdiSender.AudioMode.AudioListener)

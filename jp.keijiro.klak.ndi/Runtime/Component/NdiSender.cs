@@ -435,14 +435,12 @@ public sealed partial class NdiSender : MonoBehaviour
     internal void ResetState(bool willBeActive)
     {
         _audioMode = audioMode;
-        int availableAudioChannels = Util.AudioChannels(AudioSettings.driverCapabilities);
-        var audioSettings = AudioSettings.GetConfiguration();
-        
         ClearVirtualSpeakerListeners();
         switch (audioMode)
         {
             case AudioMode.AudioListener:
                 break;
+            /*
             case AudioMode.TryOrForce5point1:
                 audioSettings.speakerMode = AudioSpeakerMode.Mode5point1;
                 AudioSettings.Reset(audioSettings);
@@ -457,12 +455,6 @@ public sealed partial class NdiSender : MonoBehaviour
                 if (availableAudioChannels != 8)
                     CreateAudioSetup_7point1();
                 break;
-            case AudioMode.ForceVirtual5point1:
-                CreateAudioSetup_5point1();
-                break;
-            case AudioMode.ForceVirtual7point1:
-                CreateAudioSetup_7point1();
-                break;
             case AudioMode.TryOrForceQuad:
                 audioSettings.speakerMode = AudioSpeakerMode.Quad;
                 AudioSettings.Reset(audioSettings);
@@ -470,8 +462,15 @@ public sealed partial class NdiSender : MonoBehaviour
                 if (availableAudioChannels != 4)
                     CreateAudioSetup_Quad();
                 break;
-            case AudioMode.ForceVirtualQuad:
+            */
+            case AudioMode.VirtualQuad:
                 CreateAudioSetup_Quad();
+                break;
+            case AudioMode.Virtual5Point1:
+                CreateAudioSetup_5point1();
+                break;
+            case AudioMode.Virtual7Point1:
+                CreateAudioSetup_7point1();
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
