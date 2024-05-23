@@ -18,7 +18,8 @@ public sealed partial class NdiSender : MonoBehaviour
         */ 
         VirtualQuad,
         Virtual5Point1, 
-        Virtual7Point1
+        Virtual7Point1,
+        Virtual32Array,
     }
     
     [SerializeField] string _ndiName = "NDI Sender";

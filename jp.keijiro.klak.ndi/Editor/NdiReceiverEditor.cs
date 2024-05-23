@@ -110,16 +110,31 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
         EditorGUI.indentLevel--;
 
         EditorGUI.BeginChangeCheck();
-        EditorGUILayout.PropertyField(_audioSource);
-        EditorGUILayout.PropertyField(_createVirtualSpeakers);
+        var currentIndex = _createVirtualSpeakers.Target.boolValue ? 1 : 0;
+        var newIndex = EditorGUILayout.Popup("Audio Receiver Mode", currentIndex, new[] { "Automatic by channel count", "Always create Virtual Speakers" });
+        if (currentIndex == 0)
+        {
+            EditorGUI.indentLevel++;
+            EditorGUILayout.HelpBox("If the NDI audio stream has at most the supported channel count of this device, a regular AudioSource will be created to pass through the received audio data.\n" +
+                                    "Otherwise, Virtual Speakers will be created, and Unity will spatialize them.\n" +
+                                    "You can assign a custom AudioSource to receive the data here, otherwise one will be created when needed."
+                , MessageType.Info);
+            EditorGUILayout.PropertyField(_audioSource);
+            EditorGUI.indentLevel--;
+        }
+        // EditorGUILayout.PropertyField(_createVirtualSpeakers);
         var audioSourceChanged = EditorGUI.EndChangeCheck();
+        if (currentIndex != newIndex)
+        {
+            _createVirtualSpeakers.Target.boolValue = newIndex == 1;
+        }
 
         serializedObject.ApplyModifiedProperties();
 
         // if (restart) RequestRestart();
 
         if (audioSourceChanged)
-            foreach (NdiReceiver receiver in targets) receiver.CheckAudioSource();
+            foreach (NdiReceiver receiver in targets) receiver.CheckPassthroughAudioSource();
     }
 }
 

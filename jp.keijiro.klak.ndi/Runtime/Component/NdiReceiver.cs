@@ -42,39 +42,6 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 	#endregion
 
-		/*
-	RenderTexture TryReceiveFrame()
-	{
-		PrepareReceiverObjects();
-		if (_recv == null) return null;
-
-		// Video frame capturing
-		var frameOrNull = RecvHelper.TryCaptureVideoFrame(_recv);
-		if (frameOrNull == null) return null;
-		var frame = (Interop.VideoFrame)frameOrNull;
-
-		// Pixel format conversion
-		var rt = _converter.Decode
-			(frame.Width, frame.Height, Util.HasAlpha(frame.FourCC), frame.Data);
-
-		// Metadata retrieval
-		if (frame.Metadata != IntPtr.Zero)
-			metadata = Marshal.PtrToStringAnsi(frame.Metadata);
-		else
-			metadata = null;
-
-		// Video frame release
-		_recv.FreeVideoFrame(frame);
-
-		if (_override == null) _override = new MaterialPropertyBlock();
-
-		tokenSource = new CancellationTokenSource();
-		cancellationToken = tokenSource.Token;
-
-		Task.Run(ReceiveFrameTask, cancellationToken);
-	}
-		*/
-
     internal void Restart() => ReleaseReceiverObjects();
 
 	void Awake()
@@ -92,7 +59,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 		UpdateAudioExpectations();
 		AudioSettings.OnAudioConfigurationChanged += AudioSettings_OnAudioConfigurationChanged;
-		CheckAudioSource();
+		CheckPassthroughAudioSource();
 	}
 
 	private void Update()
@@ -118,22 +85,6 @@ public sealed partial class NdiReceiver : MonoBehaviour
     void OnDisable() => ReleaseReceiverObjects();
 
 	#region Receiver implementation
-
-		/*
-	void Temp()
-	{ 
-        // Material property override
-        if (targetRenderer != null)
-        {
-            targetRenderer.GetPropertyBlock(_override);
-            _override.SetTexture(targetMaterialProperty, rt);
-            targetRenderer.SetPropertyBlock(_override);
-        }
-
-        // External texture update
-        if (targetTexture != null) Graphics.Blit(rt, targetTexture);
-    }
-		*/
 
     private CancellationTokenSource tokenSource;
     private CancellationToken cancellationToken;
@@ -289,33 +240,32 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private int _virtualSpeakersCount = 0;
 	private bool _settingsChanged = false;
 	
-	public void CheckAudioSource()
+	public void CheckPassthroughAudioSource()
 	{
-		
-		if(Application.isPlaying == false)
-			return;
-
-		_hasAudioSource = _audioSource != null;
+		if (Application.isPlaying == false) return;
+		if (_usingVirtualSpeakers) return;
 
 		DestroyAudioSourceBridge();
 
-		if (_hasAudioSource == false)
-			return;
-
-		if (_usingVirtualSpeakers)
-			return;
+		if (!_audioSource)
+		{
+			// create a fallback AudioSource for passthrough of matching channel counts
+			var newSource = new GameObject("Passthrough Audio Source", typeof(AudioSource)).GetComponent<AudioSource>();
+			newSource.dopplerLevel = 0;
+			newSource.spatialBlend = 0;
+			newSource.bypassListenerEffects = true;
+			newSource.transform.SetParent(transform, false);
+			newSource.hideFlags = HideFlags.DontSave;
+			_hasAudioSource = true;
+		}
 		
 		// Make sure it is playing so OnAudioFilterRead gets called by Unity
 		_audioSource.Play();
 
-		if (_audioSource.gameObject == gameObject)
-			return;
-
-		// Create a bridge component if the AudioSource is not on this GameObject so we can feed audio samples to it.
-
-		if (_receivedAudioChannels == -1)
-			return;
+		if (_audioSource.gameObject == gameObject) return;
+		if (_receivedAudioChannels == -1) return;
 		
+		// Create a bridge component if the AudioSource is not on this GameObject so we can feed audio samples to it.
 		_audioSourceBridge = _audioSource.GetComponent<AudioSourceBridge>();
 		if(_audioSourceBridge == null)
 			_audioSourceBridge = _audioSource.gameObject.AddComponent<AudioSourceBridge>();
@@ -508,7 +458,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			Debug.Log("Setting Speaker Mode to Stereo");
 			audioConfiguration.speakerMode = AudioSpeakerMode.Stereo;
 			AudioSettings.Reset(audioConfiguration);
-			CheckAudioSource();
+			CheckPassthroughAudioSource();
 			return;
 		}
 		if (_expectedAudioChannels == 4 && _receivedAudioChannels == 4)
@@ -516,7 +466,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			Debug.Log("Setting Speaker Mode to Quad");
 			audioConfiguration.speakerMode = AudioSpeakerMode.Quad;
 			AudioSettings.Reset(audioConfiguration);
-			CheckAudioSource();
+			CheckPassthroughAudioSource();
 			return;
 		}
 		if (_expectedAudioChannels == 6 && _receivedAudioChannels == 4)
@@ -524,7 +474,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			Debug.Log("Setting Speaker Mode to 5.1");
 			audioConfiguration.speakerMode = AudioSpeakerMode.Mode5point1;
 			AudioSettings.Reset(audioConfiguration);
-			CheckAudioSource();
+			CheckPassthroughAudioSource();
 			return;
 		}
 		if (_expectedAudioChannels == 8 && _receivedAudioChannels == 4)
@@ -532,7 +482,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			Debug.Log("Setting Speaker Mode to 7.1");
 			audioConfiguration.speakerMode = AudioSpeakerMode.Mode7point1;
 			AudioSettings.Reset(audioConfiguration);
-			CheckAudioSource();
+			CheckPassthroughAudioSource();
 			return;
 		}
 
@@ -547,7 +497,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				case 8: audioConfiguration.speakerMode = AudioSpeakerMode.Mode7point1; break;
 			}
 			AudioSettings.Reset(audioConfiguration);
-			CheckAudioSource();
+			CheckPassthroughAudioSource();
 			return;
 		}
 		
