@@ -113,23 +113,10 @@ sealed class NdiSenderEditor : UnityEditor.Editor
         var audioModeEnum = (NdiSender.AudioMode)audioMode.Target.enumValueIndex;
         if (audioModeEnum != NdiSender.AudioMode.AudioListener)
         {
-            /*
-            if (audioModeEnum == NdiSender.AudioMode.TryOrForce5point1 ||
-                audioModeEnum == NdiSender.AudioMode.TryOrForce7point1 ||
-                audioModeEnum == NdiSender.AudioMode.TryOrForceQuad)
-            {
-                EditorGUILayout.HelpBox("If the audio device is not supporting quad/5.1/7.1, it will create virtual Audio Listener to emulate it.", MessageType.Info);
-            }
-            else
-            */
-            {
-                EditorGUILayout.HelpBox("This AudioMode will create virtual AudioListeners and is not using the Unity builtin spatializer and AudioListener.", MessageType.Info);
-            }
-            EditorGUILayout.HelpBox(
+            EditorGUILayout.HelpBox("This AudioMode will create virtual AudioListeners and is not using the Unity builtin spatializer and AudioListener.\n" + 
                 "Virtual Audio Listeners do not support Unity's Audio Mixer. All Audio Sources with the " +
                 nameof(AudioSourceListener) + " component will be received by the Virtual Listeners.", MessageType.Info);
             
-            // get current spatializer: 
             var spatializer = AudioSettings.GetSpatializerPluginName();
             var spatializerExpectedName = "Dummy Spatializer (NDI)";
             if (spatializer != spatializerExpectedName)
@@ -138,6 +125,8 @@ sealed class NdiSenderEditor : UnityEditor.Editor
                 if (GUILayout.Button("Fix"))
                 {
                     AudioSettings.SetSpatializerPluginName(spatializerExpectedName);
+                    if (AudioSettings.GetSpatializerPluginName() != spatializerExpectedName)
+                        Debug.LogWarning("Spatializer plugin not found. If you just installed KlakNDI with Audio Support, please restart Unity. If this issue persists, please report a bug.");
                 }   
             }
             EditorGUILayout.PropertyField(virtualListenerDistance);
