@@ -130,6 +130,24 @@ public sealed partial class NdiSender : MonoBehaviour
         VirtualAudio.AddListener( new Vector3(distance, 0f, -distance), dotAdjust, 1f);
         _useVirtualSpeakerListeners = true;
     }
+
+    private void CreateAudioSetup_32Array()
+    {
+        VirtualAudio.useVirtualAudio = true;
+        VirtualAudio.ClearAllVirtualSpeakerListeners();
+
+        float dotAdjust = 0.7f;
+        
+        for (int i = 0; i < 32; i++)
+        {
+            // Add 32 virtual speakers in a circle around the listener
+            float angle = i * Mathf.PI * 2 / 32;
+            float x = Mathf.Cos(angle) * virtualListenerDistance;
+            float z = Mathf.Sin(angle) * virtualListenerDistance;
+            VirtualAudio.AddListener(new Vector3(x, 0f, z), dotAdjust, 1f);
+        }
+        _useVirtualSpeakerListeners = true;
+    }
     
     private void Update()
     {
