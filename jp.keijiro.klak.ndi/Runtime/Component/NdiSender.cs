@@ -169,6 +169,24 @@ public sealed partial class NdiSender : MonoBehaviour
         }
         _useVirtualSpeakerListeners = true;
     }
+
+    private void CreateAudioSetup_bySpeakerConfig()
+    {
+        VirtualAudio.ClearAllVirtualSpeakerListeners();
+        if (!customSpeakerConfig)
+        {
+            Debug.LogError("No custom speaker config assigned!");
+            return;
+        }
+        VirtualAudio.useVirtualAudio = true;
+
+        var allSpeakers = customSpeakerConfig.GetAllSpeakers();
+        for (int i = 0; i < allSpeakers.Length; i++)
+        {
+            VirtualAudio.AddListener(allSpeakers[i].position, 0.5f, allSpeakers[i].volume);
+        }
+        _useVirtualSpeakerListeners = true;
+    }
     
     private void Update()
     {
@@ -496,6 +514,9 @@ public sealed partial class NdiSender : MonoBehaviour
                 break;
             case AudioMode.Virtual32Array:
                 CreateAudioSetup_32Array();
+                break;
+            case AudioMode.CustomConfig:
+                CreateAudioSetup_bySpeakerConfig();
                 break;
             default:
                 throw new ArgumentOutOfRangeException();

@@ -1,3 +1,4 @@
+using Klak.Ndi.Audio;
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -20,6 +21,7 @@ public sealed partial class NdiSender : MonoBehaviour
         Virtual5Point1, 
         Virtual7Point1,
         Virtual32Array,
+        CustomConfig,
     }
     
     [SerializeField] string _ndiName = "NDI Sender";
@@ -27,6 +29,7 @@ public sealed partial class NdiSender : MonoBehaviour
     public AudioMode audioMode = AudioMode.AudioListener;
     [FormerlySerializedAs("virtualSpeakerDistance")] public float virtualListenerDistance = 10;
     public bool useCameraPositionForVirtualAttenuation = false;
+    public SpeakerConfig customSpeakerConfig;
     
     public string ndiName
       { get => _ndiNameRuntime;

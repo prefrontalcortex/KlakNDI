@@ -24,6 +24,7 @@ sealed class NdiSenderEditor : UnityEditor.Editor
     AutoProperty _sourceTexture;
     AutoProperty audioMode;
     AutoProperty virtualListenerDistance;
+    private AutoProperty customSpeakerConfig;
     private AutoProperty useCameraPositionForVirtualAttenuation;
 
     #pragma warning restore
@@ -129,7 +130,16 @@ sealed class NdiSenderEditor : UnityEditor.Editor
                         Debug.LogWarning("Spatializer plugin not found. If you just installed KlakNDI with Audio Support, please restart Unity. If this issue persists, please report a bug.");
                 }   
             }
-            EditorGUILayout.PropertyField(virtualListenerDistance);
+
+            if (audioModeEnum == NdiSender.AudioMode.CustomConfig)
+            {
+                if (customSpeakerConfig.Target.objectReferenceValue == null)
+                    GUI.color = Color.red;
+                EditorGUILayout.PropertyField(customSpeakerConfig);
+                GUI.color = Color.white;
+            }
+            else
+                EditorGUILayout.PropertyField(virtualListenerDistance);
             EditorGUILayout.PropertyField(useCameraPositionForVirtualAttenuation);
         }
         else
