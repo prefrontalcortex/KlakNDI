@@ -145,7 +145,7 @@ sealed class NdiSenderEditor : UnityEditor.Editor
         
         serializedObject.ApplyModifiedProperties();
 
-        if (_audioSourcesInScene.Length > 0 && audioModeEnum != NdiSender.AudioMode.AudioListener)
+        if (!Application.isPlaying && _audioSourcesInScene.Length > 0 && audioModeEnum != NdiSender.AudioMode.AudioListener)
         {
             GUI.backgroundColor = Color.cyan;
             GUILayout.Space(30);
@@ -188,6 +188,18 @@ sealed class NdiSenderEditor : UnityEditor.Editor
             
             EditorGUILayout.EndVertical();
             GUI.backgroundColor = Color.white;
+        }
+        
+        if (Application.isPlaying)
+        {
+            var ndiSender = target as NdiSender;
+            var channels = ndiSender.GetChannelVisualisations();
+            
+            if (channels != null)
+            {
+                ChannelMeter.Draw(channels);
+                Repaint();
+            }
         }
     }
 }
