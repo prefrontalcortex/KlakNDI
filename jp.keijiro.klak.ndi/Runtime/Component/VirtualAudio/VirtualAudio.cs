@@ -86,7 +86,14 @@ namespace Klak.Ndi.Audio
                 return _listenerDatas.Select( l => l.position).ToArray();
             }
         }
-
+        
+        public static float[] GetListenersVolume()
+        {
+            lock (_speakerLockObject)
+            {
+                return _listenerDatas.Select( l => l.volume).ToArray();
+            }
+        }
 
         public static void AddListener(Vector3 relativePosition, float dotDirectionAdjust = 0.5f, float volume = 1f)
         {

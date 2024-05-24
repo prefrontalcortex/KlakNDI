@@ -190,15 +190,30 @@ sealed class NdiSenderEditor : UnityEditor.Editor
             GUI.backgroundColor = Color.white;
         }
         
+        var ndiSender = target as NdiSender;
         if (Application.isPlaying)
         {
-            var ndiSender = target as NdiSender;
             var channels = ndiSender.GetChannelVisualisations();
-            
+
+            var vol = VirtualAudio.GetListenersVolume();
             if (channels != null)
             {
-                ChannelMeter.Draw(channels);
+                ChannelMeter.Draw(channels, (int channelNo) =>
+                {
+                    GUILayout.Label("List.Vol: ");
+                    var r = EditorGUILayout.GetControlRect(false, 10f, GUILayout.Width(80f));
+                    GUI.backgroundColor = Color.white;
+                    
+                    EditorGUI.ProgressBar(r, vol[channelNo], vol[channelNo].ToString("P0"));
+                });
                 Repaint();
+            }
+        }
+        else
+        {
+            if (!ndiSender.GetComponent<AudioListener>())
+            {
+                EditorGUILayout.HelpBox($"Missing AudioListener on this GameObject. Please add one, otherwise no audio will be send.", MessageType.Error);
             }
         }
     }
