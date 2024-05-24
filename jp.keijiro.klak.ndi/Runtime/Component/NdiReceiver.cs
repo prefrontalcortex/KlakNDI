@@ -578,7 +578,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 	void FillAudioBuffer(Interop.AudioFrame audio)
 	{
-		if (_recv == null || _hasAudioSource == false)
+		if (_recv == null)
 		{
 			return;
 		}
