@@ -157,7 +157,7 @@ public sealed partial class NdiSender : MonoBehaviour
         VirtualAudio.useVirtualAudio = true;
         VirtualAudio.ClearAllVirtualSpeakerListeners();
 
-        float dotAdjust = 0.7f;
+        float dotAdjust = 0.90f;
         
         for (int i = 0; i < 32; i++)
         {
