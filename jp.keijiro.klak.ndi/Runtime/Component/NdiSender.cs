@@ -71,6 +71,26 @@ public sealed partial class NdiSender : MonoBehaviour
     private bool _useVirtualSpeakerListeners = false;
     private float[] _channelVisualisations;
 
+#if UNITY_EDITOR
+    private void OnDrawGizmosSelected()
+    {
+        if (!Application.isPlaying)
+            return;
+        
+        var listenersPositions = VirtualAudio.GetListenersPositions();
+        var listenerVolumes = VirtualAudio.GetListenersVolume();
+        Gizmos.color = Color.yellow;
+        int listIndex = 0;
+        foreach (var listener in listenersPositions)
+        {
+            Gizmos.DrawWireSphere(transform.position + listener, 1f);
+            // Add text label
+            UnityEditor.Handles.Label(transform.position + listener + new Vector3(2f, 0, 0f), "Channel: "+listIndex+ System.Environment.NewLine + "Volume: "+listenerVolumes[listIndex]);
+            listIndex++;
+        }
+    }
+#endif
+    
     private void ClearVirtualSpeakerListeners()
     {
         _useVirtualSpeakerListeners = false;
