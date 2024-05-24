@@ -501,6 +501,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			return;
 		}
 
+		_usingVirtualSpeakers = true;
+
 		if (speakerPositions.Length == _virtualSpeakersCount)
 		{
 			// Just Update Positions
