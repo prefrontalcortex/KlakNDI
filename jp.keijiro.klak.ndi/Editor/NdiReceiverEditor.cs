@@ -25,6 +25,8 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
     AutoProperty _createVirtualSpeakers;
 
     #pragma warning restore
+    bool _foldOutChannelIncome = true;
+    bool _foldOutReceivedSpeakerSetup = true;
 
     // NDI name dropdown
     void ShowNdiNameDropdown(Rect rect)
@@ -143,8 +145,37 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
             
             if (channels != null)
             {
-                ChannelMeter.Draw(channels);
-                Repaint();
+                _foldOutChannelIncome = EditorGUILayout.BeginFoldoutHeaderGroup(_foldOutChannelIncome, "Received Channels");
+                if (_foldOutChannelIncome)
+                {
+                    ChannelMeter.Draw(channels);
+                    Repaint();
+                }
+                EditorGUILayout.EndFoldoutHeaderGroup();
+            }
+
+            var recvSpeakerSetup = ndiReceiver.GetReceivedSpeakerPositions();
+            if (recvSpeakerSetup != null)
+            {
+                _foldOutReceivedSpeakerSetup = EditorGUILayout.BeginFoldoutHeaderGroup(_foldOutReceivedSpeakerSetup, "Received Speaker Positions");
+                if (_foldOutReceivedSpeakerSetup)
+                {
+                    EditorGUILayout.BeginVertical(GUI.skin.window);
+                    GUILayout.Space(-20);
+                    // GUILayout.Label("Received Speaker Positions from AudioMeta", EditorStyles.boldLabel);
+                    for (int i = 0; i < recvSpeakerSetup.Length; i++)
+                    {
+                        EditorGUILayout.BeginHorizontal();
+                        EditorGUILayout.LabelField(i.ToString(), GUILayout.Width(25f));
+                        GUI.enabled = false;
+                        EditorGUILayout.Vector3Field("", recvSpeakerSetup[i]);
+                        GUI.enabled = true;
+                        EditorGUILayout.EndHorizontal();
+                    }
+
+                    EditorGUILayout.EndHorizontal();
+                    EditorGUILayout.EndFoldoutHeaderGroup();
+                }
             }
         }
     }
