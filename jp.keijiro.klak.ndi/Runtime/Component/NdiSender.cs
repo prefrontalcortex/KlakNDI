@@ -260,41 +260,14 @@ public sealed partial class NdiSender : MonoBehaviour
 
     private void UpdateAudioMetaData()
     {
-        /*var xmlMeta = new XmlDocument();
-        // Write in xmlMeta all Speaker positions
-        var root = xmlMeta.CreateElement("VirtualSpeakers");
-        var listenerPosition = transform.position;
-        //foreach (var speaker in _virtualSpeakers)
-        foreach (var speaker in AudioData._speakers.OrderBy( s => s.channelMapping))
-        {
-            var speakerNode = xmlMeta.CreateElement("Speaker");
-            var relativePosition = speaker.transform.position - listenerPosition;
-            //var relativePosition = speaker.position - listenerPosition;
-            speakerNode.SetAttribute("x", relativePosition.x.ToString());
-            speakerNode.SetAttribute("y", relativePosition.y.ToString());
-            speakerNode.SetAttribute("z", relativePosition.z.ToString());
-            root.AppendChild(speakerNode);
-        }
-        xmlMeta.AppendChild(root);
-
         if (_metaDataPtr != IntPtr.Zero)
         {
             Marshal.FreeCoTaskMem(_metaDataPtr);
             _metaDataPtr = IntPtr.Zero;
         }
 
-        string xml = null;
-        // Save xmlDoc to string xml
-        using (var stringWriter = new System.IO.StringWriter())
-        {
-            using (var xmlTextWriter = XmlWriter.Create(stringWriter))
-            {
-                xmlMeta.WriteTo(xmlTextWriter);
-            }
-            xml = stringWriter.ToString();
-        }
-        
-        _metaDataPtr = Marshal.StringToCoTaskMemAnsi(xml);    */
+        var xml = AudioMeta.GenerateSpeakerConfigXmlMetaData();
+        _metaDataPtr = Marshal.StringToCoTaskMemAnsi(xml);    
     }
 
     private void SendAudioListenerData(float[] data, int channels)

@@ -66,11 +66,12 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	{
 		if (_settingsChanged)
 		{
-			
 			//ReadAudioMetaData(audio.Metadata);
 			ResetAudioSpeakerSetup();
 			_settingsChanged = false;
 		}
+		if (_updateAudioMetaSpeakerSetup)
+			CreateOrUpdateSpeakerSetupByAudioMeta();
 	}
 
 	void OnDestroy()
@@ -240,6 +241,15 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 	private int _virtualSpeakersCount = 0;
 	private bool _settingsChanged = false;
+	private object _audioMetaLock = new object();
+	private bool _updateAudioMetaSpeakerSetup = false;
+	private Vector3[] _receivedSpeakerPositions;
+	
+	public Vector3[] GetReceivedSpeakerPositions()
+	{
+		lock (_audioMetaLock)
+			return _receivedSpeakerPositions;
+	}
 	
 	public void CheckPassthroughAudioSource()
 	{
@@ -480,6 +490,38 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		}
 	}
 
+	void CreateOrUpdateSpeakerSetupByAudioMeta()
+	{
+		DestroyAudioSourceBridge();
+		var speakerPositions = GetReceivedSpeakerPositions();
+		
+		if (speakerPositions == null || speakerPositions.Length == 0)
+		{
+			Debug.LogWarning("No speaker positions found in audio metadata.", this);
+			return;
+		}
+
+		if (speakerPositions.Length == _virtualSpeakersCount)
+		{
+			// Just Update Positions
+			for (int i = 0; i < speakerPositions.Length; i++)
+			{
+				_virtualSpeakers[i].speakerAudio.transform.position = speakerPositions[i];
+			}
+		}
+		else
+		{
+			DestroyAllVirtualSpeakers();
+			for (int i = 0; i < speakerPositions.Length; i++)
+			{
+				var speaker = new VirtualSpeakers();
+				speaker.CreateGameObjectWithAudioSource(transform, speakerPositions[i]);
+				speaker.CreateAudioSourceBridge(this, i, speakerPositions.Length, _systemAvailableAudioChannels);
+				_virtualSpeakers.Add(speaker);
+			}
+		}
+	}
+
 	void ResetAudioSpeakerSetup()
 	{
 		DestroyAudioSourceBridge();
@@ -540,8 +582,17 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			CreateVirtualSpeakers7point1();
 		else
 		{
-			Debug.LogWarning($"No configuration found for {channelNo} channels. Creating virtual speaker circle arrangement.", this);
-			CreateVirtualSpeakerCircle(channelNo);
+			var metaSpeakerSetup = GetReceivedSpeakerPositions();
+			if (metaSpeakerSetup != null && metaSpeakerSetup.Length > 0)
+			{
+				Debug.Log("Received speaker positions from audio metadata. Creating speaker setup.");
+				CreateOrUpdateSpeakerSetupByAudioMeta();
+			}
+			else
+			{
+				Debug.LogWarning($"No configuration found for {channelNo} channels. Creating virtual speaker circle arrangement.", this);
+				CreateVirtualSpeakerCircle(channelNo);
+			}
 		}
 
 		_virtualSpeakersCount = _virtualSpeakers.Count;
@@ -549,10 +600,17 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	
 	void ReadAudioMetaData(string metadata)
 	{
+		var speakerSetup = AudioMeta.GetSpeakerConfigFromXml(metadata);
+		if (speakerSetup != null && speakerSetup.Length >= 0)
+		{
+			_updateAudioMetaSpeakerSetup = true;
+		}
+		lock (_audioMetaLock) 
+			_receivedSpeakerPositions = speakerSetup;
 		/*
 		var xmlMeta = new XmlDocument();
 		xmlMeta.LoadXml(metadata);
-		
+
 		DestroyAllVirtualSpeakers();
 		var xmlSpeakers = xmlMeta.GetElementById("VirtualSpeakers");
 		if (xmlSpeakers != null)
@@ -615,7 +673,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		}
 
 		if (audio.Metadata != null)
-			Debug.Log(audio.Metadata);
+		{
+			ReadAudioMetaData(audio.Metadata);
+		}
 
 		if (settingsChanged)
 		{
