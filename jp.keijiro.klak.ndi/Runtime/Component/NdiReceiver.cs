@@ -236,6 +236,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private bool _usingVirtualSpeakers = false;
 	
 	private List<VirtualSpeakers> _virtualSpeakers = new List<VirtualSpeakers>();
+	private float[] _channelVisualisations;
 
 	private int _virtualSpeakersCount = 0;
 	private bool _settingsChanged = false;
@@ -243,9 +244,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	public void CheckPassthroughAudioSource()
 	{
 		if (Application.isPlaying == false) return;
+		DestroyAudioSourceBridge();
 		if (_usingVirtualSpeakers) return;
 
-		DestroyAudioSourceBridge();
 
 		if (!_audioSource)
 		{
@@ -308,6 +309,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		if ((object)_audioSourceBridge != null)
 			return;
 
+		if (channels != _receivedAudioChannels)
+			return;
+		
 		if (!HandleAudioFilterRead(data, channels))
 			Array.Fill(data, 0f);
 	}
@@ -318,7 +322,15 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 		DestroyAudioSourceBridge();
 	}
-
+	
+	internal float[] GetChannelVisualisations()
+	{
+		lock (audioBufferLock)
+		{
+			return _channelVisualisations;
+		}
+	}
+	
 	internal bool HandleAudioFilterRead(float[] data, int channels)
 	{
 		//Debug.Log(" READ DATA: "+data.Length + " "+AudioSettings.dspTime);
@@ -354,6 +366,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			{
 				audioBuffer.Front( ref data, length );
 				audioBuffer.PopFront( length );
+
+				Util.UpdateVUMeter(ref _channelVisualisations, data, channels);
 			}
 		}
 

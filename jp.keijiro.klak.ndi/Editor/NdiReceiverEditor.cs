@@ -135,7 +135,20 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
 
         if (audioSourceChanged)
             foreach (NdiReceiver receiver in targets) receiver.CheckPassthroughAudioSource();
+
+        if (Application.isPlaying)
+        {
+            var ndiReceiver = target as NdiReceiver;
+            var channels = ndiReceiver.GetChannelVisualisations();
+            
+            if (channels != null)
+            {
+                ChannelMeter.Draw(channels);
+                Repaint();
+            }
+        }
     }
+    
 }
 
 } // namespace Klak.Ndi.Editor

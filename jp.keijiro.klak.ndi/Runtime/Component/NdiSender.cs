@@ -69,7 +69,8 @@ public sealed partial class NdiSender : MonoBehaviour
     private object _lockObj = new object();
     private IntPtr _metaDataPtr = IntPtr.Zero;
     private bool _useVirtualSpeakerListeners = false;
-    
+    private float[] _channelVisualisations;
+
     private void ClearVirtualSpeakerListeners()
     {
         _useVirtualSpeakerListeners = false;
@@ -156,6 +157,14 @@ public sealed partial class NdiSender : MonoBehaviour
             _listenerPosition = transform.position;
         }
     }
+    
+    private object _channelVisualisationsLock = new object();
+    
+    internal float[] GetChannelVisualisations()
+    {
+        lock (_channelVisualisationsLock)
+            return _channelVisualisations;
+    }
 
     private void OnAudioFilterRead(float[] data, int channels)
     {
@@ -173,6 +182,8 @@ public sealed partial class NdiSender : MonoBehaviour
     {
         var mixedAudio = VirtualAudio.GetMixedAudio(out int samplesCount, _listenerPosition, useCameraPositionForVirtualAttenuation);
         int channels = mixedAudio.Count;
+        lock (_channelVisualisationsLock)
+            Util.UpdateVUMeter(ref _channelVisualisations, mixedAudio);
         
         unsafe
         {

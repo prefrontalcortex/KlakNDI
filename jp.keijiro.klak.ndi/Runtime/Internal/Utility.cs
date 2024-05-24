@@ -1,8 +1,11 @@
+using System;
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.Rendering;
 using IntPtr = System.IntPtr;
+using Object = UnityEngine.Object;
 
 namespace Klak.Ndi {
 
@@ -44,6 +47,46 @@ static class Util
             default:
                 return 2;
         }
+    }
+    
+    public static void UpdateVUMeter(ref float[] vuMeter, float[] data, int channels)
+    {
+        if (vuMeter == null || vuMeter.Length != channels)
+        {
+            vuMeter = new float[channels];
+        }
+        Array.Fill(vuMeter, 0f);
+				
+        for (int i = 0; i < data.Length; i += channels)
+        {
+            for (int c = 0; c < channels; c++)
+            {
+                float sample =  Mathf.Abs(data[i + c]);
+                if (sample > vuMeter[c])
+                    vuMeter[c] += sample;
+            }
+        }
+    }
+    
+    public static void UpdateVUMeter(ref float[] vuMeter, List<float[]> channelsData)
+    {
+        if (vuMeter == null || vuMeter.Length != channelsData.Count)
+        {
+            vuMeter = new float[channelsData.Count];
+        }
+        Array.Fill(vuMeter, 0f);
+
+        for (int c = 0; c < channelsData.Count; c++)
+        {
+            var data = channelsData[c];
+            for (int i = 0; i < data.Length; i ++)
+            {
+                    float sample =  Mathf.Abs(data[i]);
+                    if (sample > vuMeter[c])
+                        vuMeter[c] += sample;
+            }
+        }
+        
     }
 }
 
