@@ -1,3 +1,4 @@
+using System;
 using UnityEditor;
 using UnityEngine;
 
@@ -5,7 +6,7 @@ namespace Klak.Ndi.Editor
 {
     public static class ChannelMeter
     {
-        public static void Draw(float[] channels)
+        public static void Draw(float[] channels, Action<int> channelExtras = null)
         {
             GUI.backgroundColor = Color.cyan;
             EditorGUILayout.BeginVertical(GUI.skin.window);
@@ -23,7 +24,10 @@ namespace Klak.Ndi.Editor
                 EditorGUI.ProgressBar(r, channel, "");
                 GUI.backgroundColor = Color.cyan;
                     
-                GUILayout.Label(channel.ToString("P1"), EditorStyles.miniLabel, GUILayout.Width(40f));
+                GUILayout.Label(channel.ToString("P0"), EditorStyles.miniLabel, GUILayout.Width(40f));
+                if (channelExtras != null)
+                    channelExtras(channelNo);
+                
                 EditorGUILayout.EndHorizontal();
                 channelNo++;
             }
