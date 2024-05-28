@@ -32,11 +32,16 @@ namespace Klak.Ndi.Audio
          return speakerGroups.SelectMany(sg => sg.speakers).ToArray();
       }
       
+      public void AddSpeakerGroup(SpeakerGroup group)
+      {
+         Array.Resize(ref speakerGroups, speakerGroups.Length + 1);
+         speakerGroups[speakerGroups.Length - 1] = group;
+      }
       public void AddCircleSpeakerGroup(float radius, float startAngleDeg, float height, int count, float volume = 1f)
       {
          var newGroup = new SpeakerGroup();
-         ArrayUtility.Add(ref speakerGroups, newGroup);
-
+         AddSpeakerGroup(newGroup);
+         
          List<Speaker> speakers = new List<Speaker>();
          float startAngleRad = startAngleDeg * Mathf.Deg2Rad;
          for (int i = 0; i < count; i++)
