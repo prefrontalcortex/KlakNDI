@@ -47,8 +47,8 @@ namespace Klak.Ndi.Audio
          for (int i = 0; i < count; i++)
          {
             float angle = i * Mathf.PI * 2 / count;
-            float x = Mathf.Cos(angle + startAngleDeg) * radius;
-            float z = Mathf.Sin(angle + startAngleDeg) * radius;
+            float x = Mathf.Cos(angle + startAngleRad) * radius;
+            float z = Mathf.Sin(angle + startAngleRad) * radius;
 
             speakers.Add(new Speaker { position = new Vector3(x, height, z), volume = volume });
          }
