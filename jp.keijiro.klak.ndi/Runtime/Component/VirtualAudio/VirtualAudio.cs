@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Klak.Ndi.Audio
 {
-    internal static class VirtualAudio
+    public static class VirtualAudio
     {
         public struct AudioSourceSettings
         {
@@ -48,7 +48,7 @@ namespace Klak.Ndi.Audio
             }
         }
 
-        public static bool useVirtualAudio = false;
+        internal static bool useVirtualAudio = false;
 
         private static int _audioSourceNextId = 0;
 
@@ -71,7 +71,7 @@ namespace Klak.Ndi.Audio
             _listenerDatas.Clear();
         }
 
-        public static void ClearAllVirtualSpeakerListeners()
+        internal static void ClearAllVirtualSpeakerListeners()
         {
             lock (_speakerLockObject)
             {
@@ -95,7 +95,7 @@ namespace Klak.Ndi.Audio
             }
         }
 
-        public static void AddListener(Vector3 relativePosition, float dotDirectionAdjust = 0.5f, float volume = 1f)
+        internal static void AddListener(Vector3 relativePosition, float dotDirectionAdjust = 0.5f, float volume = 1f)
         {
             var newData = new ListenerData
             {
@@ -111,7 +111,7 @@ namespace Klak.Ndi.Audio
             }
         }
 
-        public static AudioSourceData RegisterAudioSourceChannel()
+        internal static AudioSourceData RegisterAudioSourceChannel()
         {
             var newData = new AudioSourceData
             {
@@ -124,7 +124,7 @@ namespace Klak.Ndi.Audio
             return newData;
         }
         
-        public static void UnRegisterAudioSource(AudioSourceData audioSourceData)
+        internal static void UnRegisterAudioSource(AudioSourceData audioSourceData)
         {
             lock (_audioSourceLockObject)
                 _audioSourcesData.Remove(audioSourceData.id);
@@ -151,7 +151,7 @@ namespace Klak.Ndi.Audio
         /// <param name="cameraPosition">Current camera position</param>
         /// <param name="useCameraPosForAttenuation">When false, the volume attenuations are based on speaker to audiosource distance</param>
         /// <returns></returns>
-        public static List<float[]> GetMixedAudio(out int samples, Vector3 cameraPosition,
+        internal static List<float[]> GetMixedAudio(out int samples, Vector3 cameraPosition,
             bool useCameraPosForAttenuation = false)
         {
             _attenuationWeights.Clear();
