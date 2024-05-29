@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Klak.Ndi.Runtime", "Klak.Ndi.Runtime.csproj", "{a3eb932a-5f81-1482-68d9-11c2056e608c}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Klak.Ndi.Editor", "Klak.Ndi.Editor.csproj", "{f0bee7ca-0896-e568-bdc1-4f02917181c0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Assembly-CSharp", "Assembly-CSharp.csproj", "{8a4bdb1c-850a-3b59-a677-510f83149640}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{a3eb932a-5f81-1482-68d9-11c2056e608c}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{a3eb932a-5f81-1482-68d9-11c2056e608c}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{f0bee7ca-0896-e568-bdc1-4f02917181c0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{f0bee7ca-0896-e568-bdc1-4f02917181c0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8a4bdb1c-850a-3b59-a677-510f83149640}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8a4bdb1c-850a-3b59-a677-510f83149640}.Debug|Any CPU.Build.0 = Debug|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
