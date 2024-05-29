@@ -333,7 +333,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		DestroyAudioSourceBridge();
 	}
 	
-	internal float[] GetChannelVisualisations()
+	public float[] GetChannelVisualisations()
 	{
 		lock (audioBufferLock)
 		{
