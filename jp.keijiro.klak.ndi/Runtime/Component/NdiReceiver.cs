@@ -251,6 +251,18 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			return _receivedSpeakerPositions;
 	}
 	
+	public Vector3[] GetCurrentSpeakerPositions()
+	{
+		if (_usingVirtualSpeakers)
+		{
+			var positions = new Vector3[_virtualSpeakers.Count];
+			for (int i = 0; i < _virtualSpeakers.Count; i++)
+				positions[i] = _virtualSpeakers[i].speakerAudio.transform.position;
+			return positions;
+		}
+		return null;
+	}
+	
 	public void CheckPassthroughAudioSource()
 	{
 		if (Application.isPlaying == false) return;
