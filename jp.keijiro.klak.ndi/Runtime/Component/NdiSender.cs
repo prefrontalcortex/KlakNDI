@@ -194,11 +194,16 @@ public sealed partial class NdiSender : MonoBehaviour
         {
             _listenerPosition = transform.position;
         }
+
+        if (_audioMode != audioMode)
+        {
+            ResetState();
+        }
     }
     
     private object _channelVisualisationsLock = new object();
     
-    internal float[] GetChannelVisualisations()
+    public float[] GetChannelVisualisations()
     {
         lock (_channelVisualisationsLock)
             return _channelVisualisations;
