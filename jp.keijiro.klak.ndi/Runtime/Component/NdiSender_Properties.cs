@@ -21,7 +21,8 @@ public sealed partial class NdiSender : MonoBehaviour
         Virtual5Point1, 
         Virtual7Point1,
         Virtual32Array,
-        CustomConfig,
+        CustomSpeakerConfig,
+        ObjectBased
     }
     
     [SerializeField] string _ndiName = "NDI Sender";

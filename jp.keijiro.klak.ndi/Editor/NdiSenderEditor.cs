@@ -131,7 +131,7 @@ sealed class NdiSenderEditor : UnityEditor.Editor
                 }   
             }
 
-            if (audioModeEnum == NdiSender.AudioMode.CustomConfig)
+            if (audioModeEnum == NdiSender.AudioMode.CustomSpeakerConfig)
             {
                 if (customSpeakerConfig.Target.objectReferenceValue == null)
                     GUI.color = Color.red;
@@ -206,15 +206,27 @@ sealed class NdiSenderEditor : UnityEditor.Editor
             var channels = ndiSender.GetChannelVisualisations();
 
             var vol = VirtualAudio.GetListenersVolume();
+            var channelPos = ndiSender.GetChannelObjectPositions();
             if (channels != null)
             {
                 ChannelMeter.Draw(channels, (int channelNo) =>
                 {
-                    GUILayout.Label("List.Vol: ");
-                    var r = EditorGUILayout.GetControlRect(false, 10f, GUILayout.Width(80f));
-                    GUI.backgroundColor = Color.white;
-                    
-                    EditorGUI.ProgressBar(r, vol[channelNo], vol[channelNo].ToString("P0"));
+                    if (ndiSender.audioMode == NdiSender.AudioMode.ObjectBased)
+                    {
+                     
+                        GUILayout.Label("Pos: "+ channelPos[channelNo].ToString());
+                        //var r = EditorGUILayout.GetControlRect(false, 10f, GUILayout.Width(80f));
+                        //GUI.backgroundColor = Color.white;
+                        //EditorGUI.ProgressBar(r, vol[channelNo], vol[channelNo].ToString("P0"));   
+                    }
+                    else
+                    {
+                        GUILayout.Label("List.Vol: ");
+                        var r = EditorGUILayout.GetControlRect(false, 10f, GUILayout.Width(80f));
+                        GUI.backgroundColor = Color.white;
+                        
+                        EditorGUI.ProgressBar(r, vol[channelNo], vol[channelNo].ToString("P0"));
+                    }
                 });
                 Repaint();
             }

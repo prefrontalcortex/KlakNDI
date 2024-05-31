@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CircularBuffer;
 using Klak.Ndi.Audio;
+using Klak.Ndi.Interop;
 using UnityEngine;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -244,6 +246,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private object _audioMetaLock = new object();
 	private bool _updateAudioMetaSpeakerSetup = false;
 	private Vector3[] _receivedSpeakerPositions;
+	private bool _receivingObjectBasedAudio = false;
 	
 	public Vector3[] GetReceivedSpeakerPositions()
 	{
@@ -352,6 +355,94 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			return _channelVisualisations;
 		}
 	}
+
+	private Queue<AudioFrameData> _audioFrames = new Queue<AudioFrameData>();
+	private Queue<AudioFrameData> _audioFramesPool = new Queue<AudioFrameData>();
+
+	private AudioFrameData AddAudioFrameToQueue(AudioFrame audioFrame)
+	{
+		AudioFrameData frame;
+		if (_audioFramesPool.Count == 0)
+			frame = new AudioFrameData();
+		else
+			frame = _audioFramesPool.Dequeue();
+		frame.Set(audioFrame);
+
+		_audioFrames.Enqueue(frame);
+
+		if (_audioFrames.Count > m_iMinBufferAheadFrames)
+		{
+			while (_audioFrames.Count > m_iMinBufferAheadFrames)
+			{
+				var f = _audioFrames.Dequeue();
+				_audioFramesPool.Enqueue(f);
+			}
+		}
+		return frame;
+	}
+	
+	public class AudioFrameData
+	{
+		public int sampleRate;
+		public int noChannels;
+		public string meta;
+
+		private float[] data;
+	
+		public void Set(AudioFrame audio)
+		{
+			sampleRate = audio.SampleRate;
+			noChannels = audio.NoChannels;
+			meta = audio.Metadata;
+			
+			int sizeInBytes = audio.NoSamples * audio.NoChannels * sizeof(float);
+
+
+			int totalSamples = audio.NoSamples * audio.NoChannels;
+			unsafe
+			{
+				void* audioDataPtr = audio.Data.ToPointer();
+
+				if (audioDataPtr != null)
+				{
+					if (data.Length < totalSamples)
+					{
+						data = new float[totalSamples];
+					}
+
+					// Grab data from native array
+					var tempSamplesPtr = UnsafeUtility.PinGCArrayAndGetDataAddress(data, out ulong tempSamplesHandle);
+					UnsafeUtility.MemCpy(tempSamplesPtr, audioDataPtr, totalSamples * sizeof(float));
+					UnsafeUtility.ReleaseGCObject(tempSamplesHandle);
+				}
+			}
+		}
+	}
+
+	private AudioFrameData _currentAudioFrame;
+
+	internal bool PullNextAudioFrame()
+	{
+		if (_currentAudioFrame != null)
+		{
+			_audioFramesPool.Enqueue(_currentAudioFrame);
+		}
+		_currentAudioFrame = null;
+		if (_audioFrames.TryDequeue(out _currentAudioFrame))
+		{
+			return true;
+		}
+
+		return false;
+	}
+
+	internal bool GetCurrentAudioFrameChannel(int channelNo, ref float[] data)
+	{
+		if (channelNo > _currentAudioFrame.noChannels - 1)
+			return false;
+		
+		
+	}
 	
 	internal bool HandleAudioFilterRead(float[] data, int channels)
 	{
@@ -401,6 +492,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 		return true;
 	}
+	
+	#region Virtual Speakers
 	
 	void DestroyAllVirtualSpeakers()
 	{
@@ -520,7 +613,14 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			// Just Update Positions
 			for (int i = 0; i < speakerPositions.Length; i++)
 			{
-				_virtualSpeakers[i].speakerAudio.transform.position = speakerPositions[i];
+				if (_receivingObjectBasedAudio)
+				{
+					var tr = _virtualSpeakers[i].speakerAudio.transform;
+					// TODO: figure out how to best lerp the position 
+					tr.position = Vector3.Lerp(tr.position, speakerPositions[i], Time.deltaTime * 5f);
+				}
+				else
+					_virtualSpeakers[i].speakerAudio.transform.position = speakerPositions[i];
 			}
 		}
 		else
@@ -529,7 +629,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			for (int i = 0; i < speakerPositions.Length; i++)
 			{
 				var speaker = new VirtualSpeakers();
-				speaker.CreateGameObjectWithAudioSource(transform, speakerPositions[i]);
+				speaker.CreateGameObjectWithAudioSource(transform, speakerPositions[i], _receivingObjectBasedAudio);
 				speaker.CreateAudioSourceBridge(this, i, speakerPositions.Length, _systemAvailableAudioChannels);
 				_virtualSpeakers.Add(speaker);
 			}
@@ -611,10 +711,11 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 		_virtualSpeakersCount = _virtualSpeakers.Count;
 	}
+	#endregion
 	
 	void ReadAudioMetaData(string metadata)
 	{
-		var speakerSetup = AudioMeta.GetSpeakerConfigFromXml(metadata);
+		var speakerSetup = AudioMeta.GetSpeakerConfigFromXml(metadata, out _receivingObjectBasedAudio);
 		if (speakerSetup != null && speakerSetup.Length >= 0)
 		{
 			_updateAudioMetaSpeakerSetup = true;
@@ -695,6 +796,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		{
 			_settingsChanged = true; 
 		}
+
+		AddAudioFrameToQueue(audio);
+		return;
 
 		int totalSamples = 0;
 
