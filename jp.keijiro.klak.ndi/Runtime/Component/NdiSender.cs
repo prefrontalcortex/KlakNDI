@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Klak.Ndi.Audio;
 using UnityEngine;
@@ -202,11 +203,18 @@ public sealed partial class NdiSender : MonoBehaviour
     }
     
     private object _channelVisualisationsLock = new object();
+    private object _channelObjectLock = new object();
     
     public float[] GetChannelVisualisations()
     {
         lock (_channelVisualisationsLock)
             return _channelVisualisations;
+    }
+    
+    internal Vector3[] GetChannelObjectPositions()
+    {
+        lock (_channelObjectLock)
+            return _objectBasedPositions.ToArray();
     }
 
     private void OnAudioFilterRead(float[] data, int channels)
@@ -215,19 +223,35 @@ public sealed partial class NdiSender : MonoBehaviour
         {
             SendAudioListenerData(data, channels);
         }
+        else
+        if (_audioMode == AudioMode.ObjectBased)
+        {
+            SendObjectBasedChannels();
+        }
         else if (_useVirtualSpeakerListeners)
         {
             SendCustomListenerData();
         }
     }
+
+    private List<float[]> _objectBasedChannels = new List<float[]>();
+    private List<Vector3> _objectBasedPositions = new List<Vector3>();
     
-    private void SendCustomListenerData()
+    private void SendObjectBasedChannels()
     {
-        var mixedAudio = VirtualAudio.GetMixedAudio(out int samplesCount, _listenerPosition, useCameraPositionForVirtualAttenuation);
-        int channels = mixedAudio.Count;
-        lock (_channelVisualisationsLock)
-            Util.UpdateVUMeter(ref _channelVisualisations, mixedAudio);
-        
+        lock (_channelObjectLock)
+        {
+            VirtualAudio.GetObjectBasedAudio(out int samplesCount, _objectBasedChannels, _objectBasedPositions);
+            lock (_channelVisualisationsLock)
+                Util.UpdateVUMeter(ref _channelVisualisations, _objectBasedChannels);
+            
+            
+            SendChannels(_objectBasedChannels, samplesCount, true);
+        }
+    }
+
+    private void SendChannels(List<float[]> channels, int samplesCount, bool forceUpdateMetaData = false)
+    {
         unsafe
         {
             bool settingsChanged = false;
@@ -240,13 +264,13 @@ public sealed partial class NdiSender : MonoBehaviour
                 
             }
 
-            if (channels != numChannels)
+            if (channels.Count != numChannels)
             {
                 settingsChanged = true;
-                numChannels = channels;
+                numChannels = channels.Count;
             }
 
-            if (settingsChanged)
+            if (settingsChanged || forceUpdateMetaData)
             {
                 System.Array.Resize<float>(ref samples, numSamples * numChannels);
                 UpdateAudioMetaData();
@@ -256,7 +280,7 @@ public sealed partial class NdiSender : MonoBehaviour
             {
                 for (int i = 0; i < numSamples; i++)
                 {
-                    samples[numSamples * ch + i] = mixedAudio[ch][i];
+                    samples[numSamples * ch + i] = channels[ch][i];
                 }
             }
 
@@ -265,7 +289,7 @@ public sealed partial class NdiSender : MonoBehaviour
                 var frame = new Interop.AudioFrame
                 {
                     SampleRate = sampleRate,
-                    NoChannels = channels,
+                    NoChannels = channels.Count,
                     NoSamples = numSamples,
                     ChannelStrideInBytes = numSamples * sizeof(float),
                     Data = (System.IntPtr)p
@@ -280,6 +304,15 @@ public sealed partial class NdiSender : MonoBehaviour
             }
         }
     }
+    
+    private void SendCustomListenerData()
+    {
+        var mixedAudio = VirtualAudio.GetMixedAudio(out int samplesCount, _listenerPosition, useCameraPositionForVirtualAttenuation);
+        lock (_channelVisualisationsLock)
+            Util.UpdateVUMeter(ref _channelVisualisations, mixedAudio);
+        
+        SendChannels(mixedAudio, samplesCount);
+    }
 
     private void UpdateAudioMetaData()
     {
@@ -289,7 +322,11 @@ public sealed partial class NdiSender : MonoBehaviour
             _metaDataPtr = IntPtr.Zero;
         }
 
-        var xml = AudioMeta.GenerateSpeakerConfigXmlMetaData();
+        
+        var xml = _audioMode == AudioMode.ObjectBased ? 
+            AudioMeta.GenerateObjectBasedConfigXmlMetaData(_objectBasedPositions) 
+            : AudioMeta.GenerateSpeakerConfigXmlMetaData();
+        
         _metaDataPtr = Marshal.StringToCoTaskMemAnsi(xml);    
     }
 
@@ -520,8 +557,12 @@ public sealed partial class NdiSender : MonoBehaviour
             case AudioMode.Virtual32Array:
                 CreateAudioSetup_32Array();
                 break;
-            case AudioMode.CustomConfig:
+            case AudioMode.CustomSpeakerConfig:
                 CreateAudioSetup_bySpeakerConfig();
+                break;
+            case AudioMode.ObjectBased:
+                VirtualAudio.useVirtualAudio = true;
+                _useVirtualSpeakerListeners = true;
                 break;
             default:
                 throw new ArgumentOutOfRangeException();

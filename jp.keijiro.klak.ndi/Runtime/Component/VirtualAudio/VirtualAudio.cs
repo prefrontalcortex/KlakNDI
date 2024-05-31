@@ -49,7 +49,7 @@ namespace Klak.Ndi.Audio
         }
 
         internal static bool useVirtualAudio = false;
-
+        internal static bool objectBasedAudio = false;
         private static int _audioSourceNextId = 0;
 
         private static readonly Dictionary<int, AudioSourceData> _audioSourcesData = new Dictionary<int, AudioSourceData>();
@@ -142,6 +142,35 @@ namespace Klak.Ndi.Audio
 
             distanceFromCameraAvg /= _listenerDatas.Count;
             return distanceFromCameraAvg;
+        }
+        
+        internal static void GetObjectBasedAudio(out int samples, List<float[]> channels, List<Vector3> positions)
+        {
+            lock (_audioSourcesData)
+            lock (_speakerLockObject)
+            {
+                samples = 0;
+                channels.Clear();
+                positions.Clear();
+
+                if (_audioSourcesData.Count == 0)
+                    return;
+
+                foreach (var audioSource in _audioSourcesData)
+                {
+                    if (samples < audioSource.Value.data.Length)
+                        samples = audioSource.Value.data.Length;
+                }
+
+                // TODO: optimize this
+                for (int i = 0; i < _audioSourcesData.Count; i++)
+                {
+                    var data = _audioSourcesData[i].data;
+                           
+                    channels.Add(data);
+                    positions.Add(_audioSourcesData[i].settings.position);
+                }
+            }
         }
         
         /// <summary>

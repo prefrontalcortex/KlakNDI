@@ -16,9 +16,25 @@ namespace Klak.Ndi.Editor
         
         private void OnEnable()
         {
-            _defaultEditor = CreateEditor(targets, Type.GetType("UnityEditor.AudioSourceInspector, UnityEditor"));
+            if (targets == null || targets.Length == 0)
+                return;
 
-            UpdateChecks();
+            var forType = Type.GetType("UnityEditor.AudioSourceInspector, UnityEditor");
+            if (forType == null)
+                return;
+            _defaultEditor = CreateEditor(targets, forType);
+            if (!_defaultEditor)
+                return;
+            
+            
+            if (!Application.isPlaying)
+                UpdateChecks();
+        }
+
+        private void OnDisable()
+        {
+            if (_defaultEditor)
+                DestroyImmediate(_defaultEditor);
         }
 
         private void UpdateChecks()
@@ -44,9 +60,14 @@ namespace Klak.Ndi.Editor
 
         public override void OnInspectorGUI()
         {
+            if (!_defaultEditor)
+                _defaultEditor = CreateEditor(targets, Type.GetType("UnityEditor.AudioSourceInspector, UnityEditor"));
+            if (!_defaultEditor)
+                return;
+            
             _defaultEditor.OnInspectorGUI();
-
-            if (!_allHasListener)
+            
+            if (!_allHasListener && ! Application.isPlaying)
             {
                 GUILayout.Space(30);
                 GUI.backgroundColor = Color.cyan;

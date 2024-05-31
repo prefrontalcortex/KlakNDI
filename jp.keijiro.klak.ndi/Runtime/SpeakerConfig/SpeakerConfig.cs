@@ -37,6 +37,20 @@ namespace Klak.Ndi.Audio
          Array.Resize(ref speakerGroups, speakerGroups.Length + 1);
          speakerGroups[speakerGroups.Length - 1] = group;
       }
+
+      public void CreateDomeSpeakers(float radius, float maxHeight, int[] countPerStage)
+      {
+         for (int i = 0; i < countPerStage.Length; i++)
+         {
+          //  float stageRadius = radius - i * Mathf.Sin()
+           // AddCircleSpeakerGroup(radius, 0,);
+            
+           
+           // Add CircleSpeakerGroup which going to round to maxHeight
+           
+         }
+      }
+      
       public void AddCircleSpeakerGroup(float radius, float startAngleDeg, float height, int count, float volume = 1f)
       {
          var newGroup = new SpeakerGroup();

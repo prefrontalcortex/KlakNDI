@@ -8,7 +8,7 @@ namespace Klak.Ndi.Audio
 		public Vector3 relativePosition;
 		private AudioSourceBridge _audioSourceBridge;
 
-		public void CreateGameObjectWithAudioSource(Transform parent, Vector3 localPosition)
+		public void CreateGameObjectWithAudioSource(Transform parent, Vector3 localPosition, bool objectBasedAudio = false)
 		{
 			var go = new GameObject();
 			go.transform.parent = parent;
@@ -18,10 +18,19 @@ namespace Klak.Ndi.Audio
 			go.hideFlags = HideFlags.NotEditable | HideFlags.DontSave;
 			speakerAudio = go.AddComponent<AudioSource>();
 			speakerAudio.loop = true;
-			speakerAudio.rolloffMode = AudioRolloffMode.Custom;
-			speakerAudio.SetCustomCurve( AudioSourceCurveType.CustomRolloff, AnimationCurve.Linear(0, 1, 1, 1) );
-			speakerAudio.maxDistance = 500;
-			speakerAudio.spatialBlend = 1f;
+			if (objectBasedAudio)
+			{
+				speakerAudio.spatialBlend = 1f;
+				speakerAudio.minDistance = 5f;
+				speakerAudio.rolloffMode = AudioRolloffMode.Logarithmic;
+			}
+			else
+			{
+				speakerAudio.rolloffMode = AudioRolloffMode.Custom;
+				speakerAudio.SetCustomCurve( AudioSourceCurveType.CustomRolloff, AnimationCurve.Linear(0, 1, 1, 1) );
+				speakerAudio.maxDistance = 500;
+				speakerAudio.spatialBlend = 1f;
+			}
 
 			if (!string.IsNullOrEmpty(AudioSettings.GetSpatializerPluginName()))
 			{
