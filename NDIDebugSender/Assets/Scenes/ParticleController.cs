@@ -18,6 +18,7 @@ public class ParticleController : MonoBehaviour
     private object _lockObj = new object();
     private float _maxVolume = 0;
 
+    private List<float> spectrum = new List<float>(4000);
     private void OnAudioFilterRead(float[] data, int channels)
     {
         float m = 0;
@@ -29,17 +30,35 @@ public class ParticleController : MonoBehaviour
         }
 
         lock (_lockObj)
+        {
+            spectrum.AddRange(data);
             _maxVolume = m;
-
+        }
     }
+    
+    public Gradient gradient;
 
     // Update is called once per frame
     void Update()
     {
+        float vol;
         lock (_lockObj)
         {
-            _particleSystem.Emit( Mathf.RoundToInt(_maxVolume * 50f));
-        }
+            vol = _maxVolume;
+        var e = new ParticleSystem.EmitParams();
+
         
+        for (int i = 0; i < spectrum.Count; i++)
+        {
+
+            vol = spectrum[i];
+            e.startColor = gradient.Evaluate(vol);
+            //e.startColor = Color.Lerp(Color.green, Color.red, Mathf.Clamp01(vol * 1f));
+            e.startLifetime = vol * 1.2f;
+            e.startSize = vol * 0.5f;
+            _particleSystem.Emit(e, 1);//Mathf.RoundToInt(vol * 3f));
+        }
+        spectrum.Clear();
+        }
     }
 }
