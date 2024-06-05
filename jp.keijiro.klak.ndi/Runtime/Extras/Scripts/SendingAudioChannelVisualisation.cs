@@ -7,6 +7,6 @@ public class SendingAudioChannelVisualisation : AudioChannelsVisualisation
 
     protected override float[] GetChannelsData()
     {
-        return  _ndiSender.GetChannelVisualisations();
+        return _ndiSender.GetChannelVisualisations();
     }
 }

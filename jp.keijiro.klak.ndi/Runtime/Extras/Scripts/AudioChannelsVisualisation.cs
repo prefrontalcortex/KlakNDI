@@ -35,7 +35,7 @@ public abstract class AudioChannelsVisualisation : MonoBehaviour
             }
         }
 
-        if (_activeChannels > requiredChannels)
+        if (_activeChannels != requiredChannels)
         {
             for (int i = 0; i < _audioChannels.Count; i++)
             {
