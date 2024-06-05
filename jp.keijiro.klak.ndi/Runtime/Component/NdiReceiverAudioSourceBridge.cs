@@ -11,12 +11,11 @@ namespace Klak.Ndi
 		private int _customChannel = -1;
 		private int _maxChannels = -1;
 		internal static double _lastFrameUpdate = -1;
-		private static float[] _rcvData;
 		
 		private static float[] _spatializedData;
 		private static AudioClip _spatilizeHelperClip;
 		private bool _noSpatializerPlugin = false;
-
+		
 		private void Awake()
 		{
 			hideFlags = HideFlags.NotEditable;
@@ -60,6 +59,9 @@ namespace Klak.Ndi
 		// Automagically called by Unity when an AudioSource component is present on the same GameObject
 		private void OnAudioFilterRead(float[] data, int channels)
 		{
+			if (!_handler)
+				return;
+			
 			if (_customChannel != -1)
 			{
 				// We have multiple AudioSource to simulate multiple speakers,
@@ -67,40 +69,18 @@ namespace Klak.Ndi
 				if (_lastFrameUpdate < AudioSettings.dspTime)
 				{
 					//Debug.Log("AudioSourceBridge: Updating audio data. " + _lastFrameUpdate + " < " + AudioSettings.dspTime );
-					int frameSize = data.Length / channels;
-					int needed = frameSize * _maxChannels;
-					if (_rcvData == null || _rcvData.Length != needed)
-					{
-						_rcvData = new float[needed];
-					}
-					
-					if (!_handler.HandleAudioFilterRead(_rcvData, _maxChannels))
+					if (!_handler.PullNextAudioFrame(data.Length, channels))
 					{
 						Array.Fill(data, 0f);
-						return;
 					}
-					
-					_lastFrameUpdate = AudioSettings.dspTime;
+					else
+						_lastFrameUpdate = AudioSettings.dspTime;
 				}
 
-				if (channels == _maxChannels)
+				if (!_handler.FillAudioChannelData(ref data, _customChannel, channels, !_noSpatializerPlugin))
 				{
-					Array.Copy(_rcvData, data, data.Length);
-				}
-				else
-				{
-					int rcvDataIndex = 0;
-					for (int i = 0; i < data.Length; i += channels)
-					{
-						float sample = _rcvData[rcvDataIndex+_customChannel];
-						
-						rcvDataIndex += _maxChannels;
-
-						for (int j = 0; j < channels; j++)
-						{
-							data[i+j] = _noSpatializerPlugin ? sample * Mathf.Abs(data[i+j]) : sample;
-						}
-					}
+					Array.Fill(data, 0f);
+					return;
 				}
 			}
 			else
@@ -108,7 +88,6 @@ namespace Klak.Ndi
 				if (!_handler.HandleAudioFilterRead(data, channels))
 					Array.Fill(data, 0f);
 			}
-			
 		}
 
 		private void OnDestroy()

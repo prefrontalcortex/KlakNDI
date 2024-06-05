@@ -12,11 +12,6 @@ public sealed partial class NdiSender : MonoBehaviour
 
     public enum AudioMode { 
         AudioListener, 
-        /*
-        TryOrForceQuad, 
-        TryOrForce5point1, 
-        TryOrForce7point1,
-        */ 
         VirtualQuad,
         Virtual5Point1, 
         Virtual7Point1,
@@ -28,8 +23,9 @@ public sealed partial class NdiSender : MonoBehaviour
     [SerializeField] string _ndiName = "NDI Sender";
     string _ndiNameRuntime;
     public AudioMode audioMode = AudioMode.AudioListener;
-    [FormerlySerializedAs("virtualSpeakerDistance")] public float virtualListenerDistance = 10;
+    public float virtualListenerDistance = 10;
     public bool useCameraPositionForVirtualAttenuation = false;
+    public int maxObjectBasedChannels = 32;
     public SpeakerConfig customSpeakerConfig;
     
     public string ndiName

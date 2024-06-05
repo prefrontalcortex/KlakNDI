@@ -8,16 +8,20 @@ namespace Klak.Ndi.Audio
 		public Vector3 relativePosition;
 		private AudioSourceBridge _audioSourceBridge;
 
-		public void CreateGameObjectWithAudioSource(Transform parent, Vector3 localPosition, bool objectBasedAudio = false)
+		public void UpdateParameters(int channelNo, int maxChannels, int systemChannels, bool objectBasedAudio = false)
 		{
-			var go = new GameObject();
-			go.transform.parent = parent;
-			go.transform.localPosition = localPosition;
-			go.name = "VirtualSpeaker";
-			go.SetActive(false);
-			go.hideFlags = HideFlags.NotEditable | HideFlags.DontSave;
-			speakerAudio = go.AddComponent<AudioSource>();
-			speakerAudio.loop = true;
+			SetAudioSourceParameters(objectBasedAudio);
+
+			speakerAudio.gameObject.SetActive(true);
+			_audioSourceBridge.Init(true, systemChannels, channelNo, maxChannels, !string.IsNullOrEmpty(AudioSettings.GetSpatializerPluginName()));
+			
+		}
+		
+		private void SetAudioSourceParameters(bool objectBasedAudio = false)
+		{
+			if (speakerAudio == null)
+				return;
+
 			if (objectBasedAudio)
 			{
 				speakerAudio.spatialBlend = 1f;
@@ -31,6 +35,19 @@ namespace Klak.Ndi.Audio
 				speakerAudio.maxDistance = 500;
 				speakerAudio.spatialBlend = 1f;
 			}
+		}
+		
+		public void CreateGameObjectWithAudioSource(Transform parent, Vector3 localPosition, bool objectBasedAudio = false)
+		{
+			var go = new GameObject();
+			go.transform.parent = parent;
+			go.transform.localPosition = localPosition;
+			go.name = "VirtualSpeaker";
+			go.SetActive(false);
+			go.hideFlags = HideFlags.NotEditable | HideFlags.DontSave;
+			speakerAudio = go.AddComponent<AudioSource>();
+			speakerAudio.loop = true;
+			SetAudioSourceParameters(objectBasedAudio);
 
 			if (!string.IsNullOrEmpty(AudioSettings.GetSpatializerPluginName()))
 			{

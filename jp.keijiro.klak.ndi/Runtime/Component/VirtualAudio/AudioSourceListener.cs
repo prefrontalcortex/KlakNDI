@@ -1,4 +1,6 @@
 using System;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
 namespace Klak.Ndi.Audio
@@ -27,10 +29,10 @@ namespace Klak.Ndi.Audio
         private object _lockObj = new object();
 
         private float[] listenerWeights;
-        
+
+
         private void OnAudioFilterRead(float[] data, int channels)
         {
-
             lock (_lockObj)
             {
                 if (_audioSourceData == null)
@@ -40,40 +42,31 @@ namespace Klak.Ndi.Audio
             }
             
             int samples =  data.Length / channels;
-            if (_audioSourceData.data == null || _audioSourceData.data.Length != samples)
-                _audioSourceData.data = new float[samples];
+            _audioSourceData.CheckDataSize(samples);
 
-            int sampleIndex = 0;
-            for (int i = 0; i < data.Length; i += channels)
+            unsafe
             {
-                // Mix all channels into one
-                
-                float v = 0;
-                int nonNullChannels = 0;
-                for (int c = 0; c < channels; c++)
+                var dataPtr = UnsafeUtility.PinGCArrayAndGetDataAddress(data, out var handle);
+                var nativeData = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<float>(dataPtr, data.Length, Allocator.None);
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+                var safety = AtomicSafetyHandle.Create();
+                NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeData, safety);
+#endif
+                lock (_lockObj)
                 {
-                    v += data[i + c];
-                    if (data[i + c] != 0)
-                        nonNullChannels++;
+                    
+                    _audioSourceData.CheckDataSize(samples);
+                    var inputPtr = (float*)dataPtr;
+                    var outputPtr = (float*)_audioSourceData.audioData.GetUnsafePtr();
+                    
+                    VirtualAudio.BurstMethods.MixToMono(inputPtr, data.Length, outputPtr, channels);
+                    listenerWeights = _audioSourceData.lastListenerWeights;
+                    _audioSourceData.settings = _TmpSettings;
                 }
-
-                if (nonNullChannels == 0)
-                    v = 0f;
-                else
-                    v /= nonNullChannels;
-
-                for (int c = 0; c < channels; c++)
-                    data[i+c] = v;
-                
-                _audioSourceData.data[sampleIndex] = v;
-                
-                sampleIndex++;
-            }
-            
-            lock (_lockObj)
-            {
-                listenerWeights = _audioSourceData.lastListenerWeights;
-                _audioSourceData.settings = _TmpSettings;
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+                AtomicSafetyHandle.Release(safety);
+#endif
+                UnsafeUtility.ReleaseGCObject(handle);
             }
         }
 
