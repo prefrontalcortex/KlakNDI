@@ -68,7 +68,24 @@ static class Util
         }
     }
     
-    public static void UpdateVUMeter(ref float[] vuMeter, List<float[]> channelsData)
+    public static void UpdateVUMeterSingleChannel(ref float[] vuMeter, float[] channelData, int channels, int channelIndex)
+    {
+        if (vuMeter == null || vuMeter.Length != channels)
+        {
+            vuMeter = new float[channels];
+            Array.Fill(vuMeter, 0f);
+        }
+
+        vuMeter[channelIndex] = 0f;
+        for (int i = 0; i < channelData.Length; i ++)
+        {
+                float sample =  Mathf.Abs(channelData[i]);
+                if (sample > vuMeter[channelIndex])
+                    vuMeter[channelIndex] += sample;
+        }
+    }    
+    
+    public static void UpdateVUMeter(ref float[] vuMeter, List<NativeArray<float>> channelsData)
     {
         if (vuMeter == null || vuMeter.Length != channelsData.Count)
         {
@@ -87,6 +104,27 @@ static class Util
             }
         }
         
+    }
+
+    public static void UpdateVUMeter(ref float[] vuMeter, List<float[]> channelsData)
+    {
+        if (vuMeter == null || vuMeter.Length != channelsData.Count)
+        {
+            vuMeter = new float[channelsData.Count];
+        }
+
+        Array.Fill(vuMeter, 0f);
+
+        for (int c = 0; c < channelsData.Count; c++)
+        {
+            var data = channelsData[c];
+            for (int i = 0; i < data.Length; i++)
+            {
+                float sample = Mathf.Abs(data[i]);
+                if (sample > vuMeter[c])
+                    vuMeter[c] += sample;
+            }
+        }
     }
 }
 

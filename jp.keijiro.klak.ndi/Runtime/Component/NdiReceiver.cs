@@ -9,6 +9,7 @@ using Klak.Ndi.Interop;
 using UnityEngine;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Profiling;
 using IntPtr = System.IntPtr;
 
 namespace Klak.Ndi {
@@ -72,12 +73,20 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			ResetAudioSpeakerSetup();
 			_settingsChanged = false;
 		}
-		if (_updateAudioMetaSpeakerSetup)
+		if (_updateAudioMetaSpeakerSetup || _receivingObjectBasedAudio)
 			CreateOrUpdateSpeakerSetupByAudioMeta();
 	}
 
 	void OnDestroy()
 	{
+		while (_audioFramesPool.Count > 0)
+			_audioFramesPool.Dequeue().Dispose();
+		while (_audioFramesBuffer.Count > 0)
+		{
+			_audioFramesBuffer[0].Dispose();
+			_audioFramesBuffer.RemoveAt(0);
+		}
+		
 		tokenSource?.Cancel();
         ReleaseReceiverObjects();
 
@@ -238,9 +247,13 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private AudioSourceBridge _audioSourceBridge;
 	private bool _usingVirtualSpeakers = false;
 	
-	private List<VirtualSpeakers> _virtualSpeakers = new List<VirtualSpeakers>();
+	private readonly List<VirtualSpeakers> _virtualSpeakers = new List<VirtualSpeakers>();
+	private readonly List<VirtualSpeakers> _parkedVirtualSpeakers = new List<VirtualSpeakers>();
 	private float[] _channelVisualisations;
-
+	private readonly List<AudioFrameData> _audioFramesBuffer = new List<AudioFrameData>();
+	private readonly List<AudioFrameData> _newAudioFramesBuffer = new List<AudioFrameData>();
+	private readonly Queue<AudioFrameData> _audioFramesPool = new Queue<AudioFrameData>();
+	
 	private int _virtualSpeakersCount = 0;
 	private bool _settingsChanged = false;
 	private object _audioMetaLock = new object();
@@ -271,8 +284,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		if (Application.isPlaying == false) return;
 		DestroyAudioSourceBridge();
 		if (_usingVirtualSpeakers) return;
-
-
+		
 		if (!_audioSource)
 		{
 			// create a fallback AudioSource for passthrough of matching channel counts
@@ -355,98 +367,203 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			return _channelVisualisations;
 		}
 	}
+	
+	ProfilerMarker PULL_NEXT_AUDIO_FRAME_MARKER = new ProfilerMarker("NdiReceiver.PullNextAudioFrame");
+	ProfilerMarker FILL_AUDIO_CHANNEL_DATA_MARKER = new ProfilerMarker("NdiReceiver.FillAudioChannelData");
+	ProfilerMarker ADD_AUDIO_FRAME_TO_QUEUE_MARKER = new ProfilerMarker("NdiReceiver.AddAudioFrameToQueue");
 
-	private Queue<AudioFrameData> _audioFrames = new Queue<AudioFrameData>();
-	private Queue<AudioFrameData> _audioFramesPool = new Queue<AudioFrameData>();
-
+	
 	private AudioFrameData AddAudioFrameToQueue(AudioFrame audioFrame)
 	{
-		AudioFrameData frame;
-		if (_audioFramesPool.Count == 0)
-			frame = new AudioFrameData();
-		else
-			frame = _audioFramesPool.Dequeue();
-		frame.Set(audioFrame);
-
-		_audioFrames.Enqueue(frame);
-
-		if (_audioFrames.Count > m_iMinBufferAheadFrames)
+		using (ADD_AUDIO_FRAME_TO_QUEUE_MARKER.Auto())
 		{
-			while (_audioFrames.Count > m_iMinBufferAheadFrames)
+			lock (audioBufferLock)
 			{
-				var f = _audioFrames.Dequeue();
-				_audioFramesPool.Enqueue(f);
-			}
-		}
-		return frame;
-	}
-	
-	public class AudioFrameData
-	{
-		public int sampleRate;
-		public int noChannels;
-		public string meta;
+				AudioFrameData frame;
+				if (_audioFramesPool.Count == 0)
+					frame = new AudioFrameData();
+				else
+					frame = _audioFramesPool.Dequeue();
+				frame.Set(audioFrame);
 
-		private float[] data;
-	
-		public void Set(AudioFrame audio)
-		{
-			sampleRate = audio.SampleRate;
-			noChannels = audio.NoChannels;
-			meta = audio.Metadata;
-			
-			int sizeInBytes = audio.NoSamples * audio.NoChannels * sizeof(float);
+				_newAudioFramesBuffer.Add(frame);
 
-
-			int totalSamples = audio.NoSamples * audio.NoChannels;
-			unsafe
-			{
-				void* audioDataPtr = audio.Data.ToPointer();
-
-				if (audioDataPtr != null)
+				while (_newAudioFramesBuffer.Count > m_iMinBufferAheadFrames)
 				{
-					if (data.Length < totalSamples)
-					{
-						data = new float[totalSamples];
-					}
-
-					// Grab data from native array
-					var tempSamplesPtr = UnsafeUtility.PinGCArrayAndGetDataAddress(data, out ulong tempSamplesHandle);
-					UnsafeUtility.MemCpy(tempSamplesPtr, audioDataPtr, totalSamples * sizeof(float));
-					UnsafeUtility.ReleaseGCObject(tempSamplesHandle);
+					var f = _newAudioFramesBuffer[0];
+					_newAudioFramesBuffer.RemoveAt(0);
+					_audioFramesPool.Enqueue(f);
 				}
+
+				return frame;
 			}
 		}
 	}
-
-	private AudioFrameData _currentAudioFrame;
-
-	internal bool PullNextAudioFrame()
+	
+	internal bool FillAudioChannelData(ref float[] data, int channelNo, int channelCountInData, bool dataContainsSpatialData = false)
 	{
-		if (_currentAudioFrame != null)
+		using (FILL_AUDIO_CHANNEL_DATA_MARKER.Auto())
 		{
-			_audioFramesPool.Enqueue(_currentAudioFrame);
-		}
-		_currentAudioFrame = null;
-		if (_audioFrames.TryDequeue(out _currentAudioFrame))
-		{
+			lock (audioBufferLock)
+			{
+				if (_audioFramesBuffer.Count == 0)
+					return false;
+
+				int frameSize = data.Length / channelCountInData;
+
+				int frameIndex = 0;
+				int samplesCopied = 0;
+				int maxChannels = _audioFramesBuffer.Max(f => f.noChannels);
+				unsafe
+				{
+					var dataPtr = UnsafeUtility.PinGCArrayAndGetDataAddress(data, out var handle);
+					var nativeData =
+						NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<float>(dataPtr, data.Length,
+							Allocator.None);
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+					var safety = AtomicSafetyHandle.Create();
+					NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeData, safety);
+#endif
+
+					var destPtr = (float*)dataPtr;
+
+					do
+					{
+						AudioFrameData _currentAudioFrame;
+						if (frameIndex >= _audioFramesBuffer.Count)
+						{
+							for (int i = 0; i < frameIndex; i++)
+							{
+								_audioFramesBuffer[i].channelSamplesReaded[channelNo] = 0;
+							}
+
+							return false;
+						}
+
+						_currentAudioFrame = _audioFramesBuffer[frameIndex];
+
+						if (channelNo >= _currentAudioFrame.noChannels)
+						{
+							for (int i = samplesCopied; i < data.Length; i++)
+							{
+								data[i] = 0f;
+							}
+
+							break;
+						}
+
+						var channelData = _currentAudioFrame.GetChannelArray(channelNo, frameSize);
+
+						int samplesToCopy = Mathf.Min(frameSize, channelData.Length);
+						_currentAudioFrame.channelSamplesReaded[channelNo] += samplesToCopy;
+
+
+						var channelDataPtr = (float*)channelData.GetUnsafePtr();
+						var audioFrameSamplesReaded = _audioFramesBuffer[frameIndex].channelSamplesReaded[channelNo];
+
+						if (dataContainsSpatialData)
+							VirtualAudio.BurstMethods.UpMixMonoWithDestination(channelDataPtr, audioFrameSamplesReaded,
+								destPtr, samplesCopied, channelCountInData, samplesToCopy);
+						else
+							VirtualAudio.BurstMethods.UpMixMono(channelDataPtr, audioFrameSamplesReaded, destPtr,
+								samplesCopied, channelCountInData, samplesToCopy);
+
+
+						samplesCopied += samplesToCopy;
+						frameIndex++;
+					} while (samplesCopied < frameSize);
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+					AtomicSafetyHandle.Release(safety);
+#endif
+					UnsafeUtility.ReleaseGCObject(handle);
+				}
+
+				Util.UpdateVUMeterSingleChannel(ref _channelVisualisations, data, maxChannels, channelNo);
+			}
+
 			return true;
 		}
-
-		return false;
 	}
 
-	internal bool GetCurrentAudioFrameChannel(int channelNo, ref float[] data)
+	internal bool PullNextAudioFrame(int frameSize, int channels)
 	{
-		if (channelNo > _currentAudioFrame.noChannels - 1)
-			return false;
-		
-		
+		using (PULL_NEXT_AUDIO_FRAME_MARKER.Auto())
+		{
+
+			lock (audioBufferLock)
+			{
+				for (int i = 0; i < _newAudioFramesBuffer.Count; i++)
+					_audioFramesBuffer.Add(_newAudioFramesBuffer[i]);
+				_newAudioFramesBuffer.Clear();
+
+				if (_audioFramesBuffer.Count > m_iMinBufferAheadFrames)
+				{
+					while (_audioFramesBuffer.Count > m_iMinBufferAheadFrames)
+					{
+						var f = _audioFramesBuffer[0];
+						_audioFramesBuffer.RemoveAt(0);
+						_audioFramesPool.Enqueue(f);
+					}
+				}
+
+				do
+				{
+					if (_audioFramesBuffer.Count == 0)
+					{
+						Array.Fill(_channelVisualisations, 0f);
+						lock (_audioMetaLock)
+						{
+							Array.Fill(_receivedSpeakerPositions, Vector3.zero);
+						}
+
+						return false;
+					}
+
+					var nextFrame = _audioFramesBuffer[0];
+					if (nextFrame.channelSamplesReaded.Sum() >= nextFrame.noChannels * nextFrame.samplesPerChannel)
+					{
+						_audioFramesPool.Enqueue(nextFrame);
+						_audioFramesBuffer.RemoveAt(0);
+					}
+					else
+					{
+						break;
+					}
+
+				} while (true);
+
+				int availableSamples = 0;
+				for (int i = 0; i < _audioFramesBuffer.Count; i++)
+				{
+					availableSamples += _audioFramesBuffer[i].samplesPerChannel;
+				}
+
+				if (availableSamples < frameSize)
+					return false;
+
+				if (_audioFramesBuffer.Count > 0)
+				{
+					lock (_audioMetaLock)
+					{
+						_receivingObjectBasedAudio = _audioFramesBuffer[0].isObjectBased;
+						_updateAudioMetaSpeakerSetup = true;
+						if (_receivedSpeakerPositions == null || _receivedSpeakerPositions.Length !=
+						    _audioFramesBuffer[0].speakerPositions.Length)
+							_receivedSpeakerPositions = _audioFramesBuffer[0].speakerPositions;
+						else
+							Array.Copy(_audioFramesBuffer[0].speakerPositions, _receivedSpeakerPositions,
+								_receivedSpeakerPositions.Length);
+					}
+				}
+
+				return true;
+			}
+		}
 	}
 	
 	internal bool HandleAudioFilterRead(float[] data, int channels)
 	{
-		//Debug.Log(" READ DATA: "+data.Length + " "+AudioSettings.dspTime);
 		int length = data.Length;
 
 		// STE: Waiting for enough read ahead buffer frames?
@@ -494,6 +611,16 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	}
 	
 	#region Virtual Speakers
+
+	void ParkAllVirtualSpeakers()
+	{
+		for (int i = 0; i < _virtualSpeakers.Count(); i++)
+		{
+			_virtualSpeakers[i].speakerAudio.gameObject.SetActive(false);
+		}
+		_parkedVirtualSpeakers.AddRange(_virtualSpeakers);
+		_virtualSpeakers.Clear();
+	}
 	
 	void DestroyAllVirtualSpeakers()
 	{
@@ -608,7 +735,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 		_usingVirtualSpeakers = true;
 
-		if (speakerPositions.Length == _virtualSpeakersCount)
+		if (speakerPositions.Length == _virtualSpeakers.Count)
 		{
 			// Just Update Positions
 			for (int i = 0; i < speakerPositions.Length; i++)
@@ -617,7 +744,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				{
 					var tr = _virtualSpeakers[i].speakerAudio.transform;
 					// TODO: figure out how to best lerp the position 
-					tr.position = Vector3.Lerp(tr.position, speakerPositions[i], Time.deltaTime * 5f);
+					tr.position = speakerPositions[i];// Vector3.Lerp(tr.position, speakerPositions[i], Time.deltaTime * 5f);
 				}
 				else
 					_virtualSpeakers[i].speakerAudio.transform.position = speakerPositions[i];
@@ -625,13 +752,26 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		}
 		else
 		{
-			DestroyAllVirtualSpeakers();
+			ParkAllVirtualSpeakers();
+			
 			for (int i = 0; i < speakerPositions.Length; i++)
 			{
-				var speaker = new VirtualSpeakers();
-				speaker.CreateGameObjectWithAudioSource(transform, speakerPositions[i], _receivingObjectBasedAudio);
-				speaker.CreateAudioSourceBridge(this, i, speakerPositions.Length, _systemAvailableAudioChannels);
-				_virtualSpeakers.Add(speaker);
+				if (_parkedVirtualSpeakers.Count > 0)
+				{
+					var vs = _parkedVirtualSpeakers[0];
+					_parkedVirtualSpeakers.RemoveAt(0);
+					vs.speakerAudio.transform.position = speakerPositions[i];
+					_virtualSpeakers.Add(vs);
+					vs.UpdateParameters(i, speakerPositions.Length, _systemAvailableAudioChannels, _receivingObjectBasedAudio);
+
+				}
+				else
+				{
+					var speaker = new VirtualSpeakers();
+					speaker.CreateGameObjectWithAudioSource(transform, speakerPositions[i], _receivingObjectBasedAudio);
+					speaker.CreateAudioSourceBridge(this, i, speakerPositions.Length, _systemAvailableAudioChannels);
+					_virtualSpeakers.Add(speaker);
+				}
 			}
 		}
 	}
@@ -639,42 +779,48 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	void ResetAudioSpeakerSetup()
 	{
 		DestroyAudioSourceBridge();
-		DestroyAllVirtualSpeakers();
+		ParkAllVirtualSpeakers();
 		var audioConfiguration = AudioSettings.GetConfiguration();
-		if (_systemAvailableAudioChannels == 2 && _receivedAudioChannels == 2)
+		if (!_receivingObjectBasedAudio)
 		{
-			Debug.Log("Setting Speaker Mode to Stereo");
-			audioConfiguration.speakerMode = AudioSpeakerMode.Stereo;
-			AudioSettings.Reset(audioConfiguration);
-			CheckPassthroughAudioSource();
-			return;
-		}
-		if (_systemAvailableAudioChannels == 4 && _receivedAudioChannels == 4)
-		{
-			Debug.Log("Setting Speaker Mode to Quad");
-			audioConfiguration.speakerMode = AudioSpeakerMode.Quad;
-			AudioSettings.Reset(audioConfiguration);
-			CheckPassthroughAudioSource();
-			return;
-		}
-		if (_systemAvailableAudioChannels == 6 && _receivedAudioChannels == 4)
-		{
-			Debug.Log("Setting Speaker Mode to 5.1");
-			audioConfiguration.speakerMode = AudioSpeakerMode.Mode5point1;
-			AudioSettings.Reset(audioConfiguration);
-			CheckPassthroughAudioSource();
-			return;
-		}
-		if (_systemAvailableAudioChannels == 8 && _receivedAudioChannels == 4)
-		{
-			Debug.Log("Setting Speaker Mode to 7.1");
-			audioConfiguration.speakerMode = AudioSpeakerMode.Mode7point1;
-			AudioSettings.Reset(audioConfiguration);
-			CheckPassthroughAudioSource();
-			return;
+			if (_systemAvailableAudioChannels == 2 && _receivedAudioChannels == 2)
+			{
+				Debug.Log("Setting Speaker Mode to Stereo");
+				audioConfiguration.speakerMode = AudioSpeakerMode.Stereo;
+				AudioSettings.Reset(audioConfiguration);
+				CheckPassthroughAudioSource();
+				return;
+			}
+
+			if (_systemAvailableAudioChannels == 4 && _receivedAudioChannels == 4)
+			{
+				Debug.Log("Setting Speaker Mode to Quad");
+				audioConfiguration.speakerMode = AudioSpeakerMode.Quad;
+				AudioSettings.Reset(audioConfiguration);
+				CheckPassthroughAudioSource();
+				return;
+			}
+
+			if (_systemAvailableAudioChannels == 6 && _receivedAudioChannels == 4)
+			{
+				Debug.Log("Setting Speaker Mode to 5.1");
+				audioConfiguration.speakerMode = AudioSpeakerMode.Mode5point1;
+				AudioSettings.Reset(audioConfiguration);
+				CheckPassthroughAudioSource();
+				return;
+			}
+
+			if (_systemAvailableAudioChannels == 8 && _receivedAudioChannels == 4)
+			{
+				Debug.Log("Setting Speaker Mode to 7.1");
+				audioConfiguration.speakerMode = AudioSpeakerMode.Mode7point1;
+				AudioSettings.Reset(audioConfiguration);
+				CheckPassthroughAudioSource();
+				return;
+			}
 		}
 
-		if (!_createVirtualSpeakers && _systemAvailableAudioChannels < _receivedAudioChannels)
+		if (!_receivingObjectBasedAudio && !_createVirtualSpeakers && _systemAvailableAudioChannels < _receivedAudioChannels)
 			Debug.Log("Received more audio channels than supported with the current audio device. Virtual Speakers will be created.");
 		
 		Debug.Log("Try setting Speaker Mode to Virtual Speakers. Received channel count: " + _receivedAudioChannels + ". System available channel count: " + _systemAvailableAudioChannels);
@@ -684,10 +830,28 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	
 	void CreateVirtualSpeakers(int channelNo)
 	{
+		if (_receivingObjectBasedAudio)
+		{
+			_usingVirtualSpeakers = true;
+			var metaSpeakerSetup = GetReceivedSpeakerPositions();
+			if (metaSpeakerSetup != null && metaSpeakerSetup.Length > 0)
+			{
+				Debug.Log("Received speaker positions from audio metadata. Creating speaker setup.");
+				CreateOrUpdateSpeakerSetupByAudioMeta();
+				_virtualSpeakersCount = _virtualSpeakers.Count;
+				return;
+			}
+
+			DestroyAllVirtualSpeakers();
+			_virtualSpeakersCount = _virtualSpeakers.Count;
+
+			return;
+		}
+		
 		DestroyAllVirtualSpeakers();
 
 		_usingVirtualSpeakers = true;
-		
+		_virtualSpeakersCount = _virtualSpeakers.Count;
 		if (channelNo == 4)
 			CreateVirtualSpeakersQuad();
 		else if (channelNo == 6)
@@ -719,48 +883,12 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		if (speakerSetup != null && speakerSetup.Length >= 0)
 		{
 			_updateAudioMetaSpeakerSetup = true;
-		}
-		lock (_audioMetaLock) 
-			_receivedSpeakerPositions = speakerSetup;
-		/*
-		var xmlMeta = new XmlDocument();
-		xmlMeta.LoadXml(metadata);
-
-		DestroyAllVirtualSpeakers();
-		var xmlSpeakers = xmlMeta.GetElementById("VirtualSpeakers");
-		if (xmlSpeakers != null)
-		{
-			foreach (XmlNode xmlSpeaker in xmlSpeakers.ChildNodes)
+			lock (_audioMetaLock)
 			{
-				if (xmlSpeaker.Name == "Speaker")
-				{
-					var speaker = new VirtualSpeakers();
-					speaker.speakerAudio = gameObject.AddComponent<AudioSource>();
-					speaker.speakerAudio.spatialBlend = 1;
-					speaker.speakerAudio.rolloffMode = AudioRolloffMode.Linear;
-					speaker.speakerAudio.minDistance = 0.1f;
-					speaker.speakerAudio.maxDistance = 1000f;
-					speaker.speakerAudio.loop = true;
-					speaker.speakerAudio.playOnAwake = true;
-					speaker.speakerAudio.volume = 1;
-					speaker.speakerAudio.mute = false;
-					speaker.speakerAudio.bypassEffects = false;
-					speaker.speakerAudio.bypassListenerEffects = false;
-					speaker.speakerAudio.bypassReverbZones = false;
-					speaker.speakerAudio.priority = 128;
-					speaker.speakerAudio.outputAudioMixerGroup = null;
-					speaker.speakerAudio.clip = null;
-					speaker.speakerAudio.name = xmlSpeaker.Attributes["Name"].Value;
-					speaker.relativePosition = new Vector3(
-						float.Parse(xmlSpeaker.Attributes["X"].Value),
-						float.Parse(xmlSpeaker.Attributes["Y"].Value),
-						float.Parse(xmlSpeaker.Attributes["Z"].Value)
-					);
-					_virtualSpeakers.Add(speaker);
-				}
+				if (_receivedSpeakerPositions == null)
+					_receivedSpeakerPositions = speakerSetup;
 			}
 		}
-		*/
 	}
 
 	void FillAudioBuffer(Interop.AudioFrame audio)

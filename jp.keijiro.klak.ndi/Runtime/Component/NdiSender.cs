@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Klak.Ndi.Audio;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -71,6 +73,11 @@ public sealed partial class NdiSender : MonoBehaviour
     private IntPtr _metaDataPtr = IntPtr.Zero;
     private bool _useVirtualSpeakerListeners = false;
     private float[] _channelVisualisations;
+    private object _channelVisualisationsLock = new object();
+    private object _channelObjectLock = new object();
+    private List<NativeArray<float>> _objectBasedChannels = new List<NativeArray<float>>();
+    private List<Vector3> _objectBasedPositions = new List<Vector3>();
+
 
 #if UNITY_EDITOR
     private void OnDrawGizmosSelected()
@@ -202,9 +209,6 @@ public sealed partial class NdiSender : MonoBehaviour
         }
     }
     
-    private object _channelVisualisationsLock = new object();
-    private object _channelObjectLock = new object();
-    
     public float[] GetChannelVisualisations()
     {
         lock (_channelVisualisationsLock)
@@ -233,24 +237,27 @@ public sealed partial class NdiSender : MonoBehaviour
             SendCustomListenerData();
         }
     }
-
-    private List<float[]> _objectBasedChannels = new List<float[]>();
-    private List<Vector3> _objectBasedPositions = new List<Vector3>();
     
     private void SendObjectBasedChannels()
     {
         lock (_channelObjectLock)
         {
-            VirtualAudio.GetObjectBasedAudio(out int samplesCount, _objectBasedChannels, _objectBasedPositions);
+            bool hasDataToSend = VirtualAudio.GetObjectBasedAudio(out var stream, out int samplesCount, _objectBasedChannels, _objectBasedPositions, maxObjectBasedChannels);
+            if (!hasDataToSend)
+            {
+                lock (_channelVisualisationsLock)
+                    Array.Fill(_channelVisualisations, 0f);
+                
+                return;
+            }
             lock (_channelVisualisationsLock)
                 Util.UpdateVUMeter(ref _channelVisualisations, _objectBasedChannels);
-            
-            
-            SendChannels(_objectBasedChannels, samplesCount, true);
+
+            SendChannels(stream, samplesCount, _objectBasedChannels.Count, true);
         }
     }
-
-    private void SendChannels(List<float[]> channels, int samplesCount, bool forceUpdateMetaData = false)
+    
+    private void SendChannels(NativeArray<float> stream, int samplesCount, int channelsCount, bool forceUpdateMetaData = false)
     {
         unsafe
         {
@@ -264,54 +271,46 @@ public sealed partial class NdiSender : MonoBehaviour
                 
             }
 
-            if (channels.Count != numChannels)
+            if (channelsCount != numChannels)
             {
                 settingsChanged = true;
-                numChannels = channels.Count;
+                numChannels = channelsCount;
             }
 
             if (settingsChanged || forceUpdateMetaData)
             {
-                System.Array.Resize<float>(ref samples, numSamples * numChannels);
                 UpdateAudioMetaData();
             }
 
-            for (int ch = 0; ch < numChannels; ch++)
-            {
-                for (int i = 0; i < numSamples; i++)
-                {
-                    samples[numSamples * ch + i] = channels[ch][i];
-                }
-            }
 
-            fixed (float* p = samples)
+            unsafe
             {
                 var frame = new Interop.AudioFrame
                 {
                     SampleRate = sampleRate,
-                    NoChannels = channels.Count,
+                    NoChannels = channelsCount,
                     NoSamples = numSamples,
                     ChannelStrideInBytes = numSamples * sizeof(float),
-                    Data = (System.IntPtr)p
+                    Data =  (System.IntPtr)stream.GetUnsafePtr()
                 };
                 
                 frame._Metadata = _metaDataPtr;
 
-                if (_send != null)
+                if (_send != null && !_send.IsInvalid && !_send.IsClosed)
                 {
                     _send.SendAudio(frame);
                 }
             }
         }
     }
-    
+
     private void SendCustomListenerData()
     {
-        var mixedAudio = VirtualAudio.GetMixedAudio(out int samplesCount, _listenerPosition, useCameraPositionForVirtualAttenuation);
+        var mixedAudio = VirtualAudio.GetMixedAudio(out var stream, out int samplesCount, _listenerPosition, useCameraPositionForVirtualAttenuation);
         lock (_channelVisualisationsLock)
             Util.UpdateVUMeter(ref _channelVisualisations, mixedAudio);
         
-        SendChannels(mixedAudio, samplesCount);
+        SendChannels(stream, samplesCount, mixedAudio.Count);
     }
 
     private void UpdateAudioMetaData()
@@ -522,29 +521,6 @@ public sealed partial class NdiSender : MonoBehaviour
         {
             case AudioMode.AudioListener:
                 break;
-            /*
-            case AudioMode.TryOrForce5point1:
-                audioSettings.speakerMode = AudioSpeakerMode.Mode5point1;
-                AudioSettings.Reset(audioSettings);
-                
-                if (availableAudioChannels != 6)
-                    CreateAudioSetup_5point1();
-                break;
-            case AudioMode.TryOrForce7point1:
-                audioSettings.speakerMode = AudioSpeakerMode.Mode7point1;
-                AudioSettings.Reset(audioSettings);
-                
-                if (availableAudioChannels != 8)
-                    CreateAudioSetup_7point1();
-                break;
-            case AudioMode.TryOrForceQuad:
-                audioSettings.speakerMode = AudioSpeakerMode.Quad;
-                AudioSettings.Reset(audioSettings);
-
-                if (availableAudioChannels != 4)
-                    CreateAudioSetup_Quad();
-                break;
-            */
             case AudioMode.VirtualQuad:
                 CreateAudioSetup_Quad();
                 break;
