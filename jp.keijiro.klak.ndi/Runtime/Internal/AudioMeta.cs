@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Xml;
+using JetBrains.Annotations;
 using Klak.Ndi.Audio;
 using UnityEngine;
 
@@ -7,8 +8,14 @@ namespace Klak.Ndi
 {
     internal static class AudioMeta
     {
-        public static Vector3[] GetSpeakerConfigFromXml(string xml, out bool isObjectBased)
+        public static Vector3[] GetSpeakerConfigFromXml([CanBeNull] string xml, out bool isObjectBased)
         {
+            if (xml == null)
+            {
+                isObjectBased = false;
+                return null;
+            }
+                
             isObjectBased = false;
             var xmlDoc = new XmlDocument();
             xmlDoc.LoadXml(xml);
@@ -17,6 +24,7 @@ namespace Klak.Ndi
             for (int i = 0; i < speakerNodes.Count; i++)
             {
                 var speakerNode = speakerNodes[i];
+                if (speakerNode?.Attributes == null) continue;
                 var x = float.Parse(speakerNode.Attributes["x"].Value);
                 var y = float.Parse(speakerNode.Attributes["y"].Value);
                 var z = float.Parse(speakerNode.Attributes["z"].Value);

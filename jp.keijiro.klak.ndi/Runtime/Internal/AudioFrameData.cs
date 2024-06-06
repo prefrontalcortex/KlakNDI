@@ -43,7 +43,8 @@ namespace Klak.Ndi
 			Array.Fill(channelSamplesReaded, 0);
 
 			samplesPerChannel = audio.NoSamples;
-			speakerPositions = AudioMeta.GetSpeakerConfigFromXml(meta, out isObjectBased);
+			if (meta != null)
+				speakerPositions = AudioMeta.GetSpeakerConfigFromXml(meta, out isObjectBased);
 			
 			int totalSamples = audio.NoSamples * audio.NoChannels;
 			unsafe
