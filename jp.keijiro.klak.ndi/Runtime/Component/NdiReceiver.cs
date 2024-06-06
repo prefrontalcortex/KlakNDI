@@ -140,6 +140,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				{
 					case Interop.FrameType.Audio:
 						//Debug.Log($"received {type}: {audio}");
+						if (!_receiveAudio) break;
 						FillAudioBuffer(audio);
 						mainThreadContext.Post(ProcessAudioFrame, audio);
 						break;
@@ -819,6 +820,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	{
 		DestroyAudioSourceBridge();
 		ParkAllVirtualSpeakers();
+
+		if (!_receiveAudio) return;
+		
 		var audioConfiguration = AudioSettings.GetConfiguration();
 		if (!_receivingObjectBasedAudio)
 		{
