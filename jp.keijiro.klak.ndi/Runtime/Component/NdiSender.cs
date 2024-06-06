@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Klak.Ndi.Audio;
+#if OSC_JACK
+using OscJack;
+#endif
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
@@ -77,8 +80,10 @@ public sealed partial class NdiSender : MonoBehaviour
     private object _channelObjectLock = new object();
     private List<NativeArray<float>> _objectBasedChannels = new List<NativeArray<float>>();
     private List<Vector3> _objectBasedPositions = new List<Vector3>();
-
-
+#if OSC_JACK
+    private AdmOscSender _admOscSender;
+#endif
+    
 #if UNITY_EDITOR
     private void OnDrawGizmosSelected()
     {
@@ -253,6 +258,11 @@ public sealed partial class NdiSender : MonoBehaviour
             lock (_channelVisualisationsLock)
                 Util.UpdateVUMeter(ref _channelVisualisations, _objectBasedChannels);
 
+#if OSC_JACK
+            if (_admOscSender != null)
+                _admOscSender.SendMeta(_objectBasedPositions);
+#endif
+            
             SendChannels(stream, samplesCount, _objectBasedChannels.Count, true);
         }
     }
@@ -328,7 +338,20 @@ public sealed partial class NdiSender : MonoBehaviour
         
         _metaDataPtr = Marshal.StringToCoTaskMemAnsi(xml);    
     }
-
+    
+#if OSC_JACK
+    public void SetupAndStartOsc(string host, int port = 9000)
+    {
+        OscConnection connection = new OscConnection();
+        connection.host = host;
+        connection.port = 9000;
+        _oscConnection = connection;
+        if (_admOscSender != null)
+            _admOscSender.Dispose();
+        _admOscSender = new AdmOscSender(_oscConnection);
+    }
+#endif
+    
     private void SendAudioListenerData(float[] data, int channels)
     {
         if (data.Length == 0 || channels == 0) return;
@@ -607,9 +630,31 @@ public sealed partial class NdiSender : MonoBehaviour
 
     #region MonoBehaviour implementation
 
+    private void Awake()
+    {
+#if OSC_JACK
+        if (_sendAdmOsc)
+        {
+            _admOscSender = new AdmOscSender(_oscConnection);
+            _admOscSender.SetSettings(_admSettings);
+        }
+#endif
+
+    }
+
     void OnEnable() => ResetState();
     void OnDisable() => Restart(false);
-    void OnDestroy() => Restart(false);
+
+    void OnDestroy()
+    {
+#if OSC_JACK
+        if (_admOscSender != null)
+            _admOscSender.Dispose();
+#endif		
+        
+        Restart(false);
+    } 
+        
 
     #endregion
 }

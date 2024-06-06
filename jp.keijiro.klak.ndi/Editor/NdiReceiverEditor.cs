@@ -1,6 +1,9 @@
 using UnityEngine;
 using UnityEditor;
 using System.Linq;
+#if OSC_JACK
+using OscJack;
+#endif
 
 namespace Klak.Ndi.Editor {
 
@@ -23,7 +26,12 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
     AutoProperty _targetMaterialProperty;
     AutoProperty _audioSource;
     AutoProperty _createVirtualSpeakers;
-
+#if OSC_JACK
+    AutoProperty _sendAdmOsc;
+    AutoProperty _oscConnection;
+    AutoProperty _admSettings;
+#endif
+    
     #pragma warning restore
     bool _foldOutChannelIncome = true;
     bool _foldOutReceivedSpeakerSetup = true;
@@ -124,6 +132,17 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
             EditorGUILayout.PropertyField(_audioSource);
             EditorGUI.indentLevel--;
         }
+#if OSC_JACK
+        GUILayout.BeginVertical(GUI.skin.box);
+        EditorGUILayout.LabelField("Object Based Audio", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(_sendAdmOsc);
+        if (_sendAdmOsc.Target.boolValue)
+        {
+            EditorGUILayout.PropertyField(_oscConnection);
+            EditorGUILayout.PropertyField(_admSettings);
+        }
+        GUILayout.EndVertical();
+#endif
         // EditorGUILayout.PropertyField(_createVirtualSpeakers);
         var audioSourceChanged = EditorGUI.EndChangeCheck();
         if (currentIndex != newIndex)

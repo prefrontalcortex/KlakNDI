@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 using CircularBuffer;
 using Klak.Ndi.Audio;
 using Klak.Ndi.Interop;
+#if OSC_JACK
+using OscJack;
+#endif
 using UnityEngine;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -57,6 +60,13 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 		tokenSource = new CancellationTokenSource();
 		cancellationToken = tokenSource.Token;
+#if OSC_JACK
+		if (_sendAdmOsc)
+		{
+			_admOscSender = new AdmOscSender(_oscConnection);
+			_admOscSender.SetSettings(_admSettings);
+		}
+#endif
 
 		Task.Run(ReceiveFrameTask, cancellationToken);
 
@@ -87,6 +97,10 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			_audioFramesBuffer.RemoveAt(0);
 		}
 		
+#if OSC_JACK
+		if (_admOscSender != null)
+			_admOscSender.Dispose();
+#endif		
 		tokenSource?.Cancel();
         ReleaseReceiverObjects();
 
@@ -261,6 +275,22 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private Vector3[] _receivedSpeakerPositions;
 	private bool _receivingObjectBasedAudio = false;
 	
+#if OSC_JACK
+	private AdmOscSender _admOscSender;
+	
+	public void SetupAndStartOsc(string host, int port = 9000)
+	{
+		OscConnection connection = new OscConnection();
+		connection.host = host;
+		connection.port = 9000;
+		_oscConnection = connection;
+		if (_admOscSender != null)
+			_admOscSender.Dispose();
+		_admOscSender = new AdmOscSender(_oscConnection);
+	}
+#endif
+
+	
 	public Vector3[] GetReceivedSpeakerPositions()
 	{
 		lock (_audioMetaLock)
@@ -371,7 +401,6 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	ProfilerMarker PULL_NEXT_AUDIO_FRAME_MARKER = new ProfilerMarker("NdiReceiver.PullNextAudioFrame");
 	ProfilerMarker FILL_AUDIO_CHANNEL_DATA_MARKER = new ProfilerMarker("NdiReceiver.FillAudioChannelData");
 	ProfilerMarker ADD_AUDIO_FRAME_TO_QUEUE_MARKER = new ProfilerMarker("NdiReceiver.AddAudioFrameToQueue");
-
 	
 	private AudioFrameData AddAudioFrameToQueue(AudioFrame audioFrame)
 	{
@@ -546,6 +575,12 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				{
 					lock (_audioMetaLock)
 					{
+						
+#if OSC_JACK
+						if (_admOscSender != null)
+							_admOscSender.SendMeta(_audioFramesBuffer[0].speakerPositions);
+#endif
+	
 						_receivingObjectBasedAudio = _audioFramesBuffer[0].isObjectBased;
 						_updateAudioMetaSpeakerSetup = true;
 						if (_receivedSpeakerPositions == null || _receivedSpeakerPositions.Length !=

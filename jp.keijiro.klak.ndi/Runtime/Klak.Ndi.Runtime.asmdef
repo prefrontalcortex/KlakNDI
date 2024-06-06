@@ -5,7 +5,8 @@
         "GUID:df380645f10b7bc4b97d4f5eb6303d95",
         "GUID:e0cd26848372d4e5c891c569017e11f1",
         "GUID:2665a8d13d1b3f18800f46e256720795",
-        "GUID:d8b63aba1907145bea998dd612889d6b"
+        "GUID:d8b63aba1907145bea998dd612889d6b",
+        "GUID:9df4bb2434fa4444a85e58f9b2d5d6d2"
     ],
     "includePlatforms": [
         "Android",
@@ -26,6 +27,11 @@
             "name": "com.unity.render-pipelines.core",
             "expression": "0.0.0",
             "define": "KLAK_NDI_HAS_SRP"
+        },
+        {
+            "name": "jp.keijiro.osc-jack",
+            "expression": "0.0.0",
+            "define": "OSC_JACK"
         }
     ],
     "noEngineReferences": false
