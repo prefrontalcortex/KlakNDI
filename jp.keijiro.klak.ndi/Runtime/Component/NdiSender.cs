@@ -630,18 +630,6 @@ public sealed partial class NdiSender : MonoBehaviour
 
     #region MonoBehaviour implementation
 
-    private void Awake()
-    {
-#if OSC_JACK
-        if (_sendAdmOsc)
-        {
-            _admOscSender = new AdmOscSender(_oscConnection);
-            _admOscSender.SetSettings(_admSettings);
-        }
-#endif
-
-    }
-
     void OnEnable() => ResetState();
     void OnDisable() => Restart(false);
 

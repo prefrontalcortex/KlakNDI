@@ -132,7 +132,14 @@ public sealed partial class NdiSender : MonoBehaviour
     void Awake()
     {
     #endif
-    
+        
+#if OSC_JACK
+        if (_sendAdmOsc)
+        {
+            _admOscSender = new AdmOscSender(_oscConnection);
+            _admOscSender.SetSettings(_admSettings);
+        }
+#endif
         ndiName = _ndiName;
         captureMethod = _captureMethod;
         sourceCamera = _sourceCamera;
