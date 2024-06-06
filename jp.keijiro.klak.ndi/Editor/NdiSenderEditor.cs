@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using Klak.Ndi.Audio;
 using UnityEngine;
 using UnityEditor;
+#if OSC_JACK
+using OscJack;
+#endif
 
 namespace Klak.Ndi.Editor {
 
@@ -24,6 +27,12 @@ sealed class NdiSenderEditor : UnityEditor.Editor
     AutoProperty _sourceTexture;
     AutoProperty audioMode;
     AutoProperty virtualListenerDistance;
+#if OSC_JACK
+    AutoProperty _sendAdmOsc;
+    AutoProperty _oscConnection;
+    AutoProperty _admSettings;
+#endif
+
     private AutoProperty customSpeakerConfig;
     private AutoProperty useCameraPositionForVirtualAttenuation;
 
@@ -137,6 +146,17 @@ sealed class NdiSenderEditor : UnityEditor.Editor
                     GUI.color = Color.red;
                 EditorGUILayout.PropertyField(customSpeakerConfig);
                 GUI.color = Color.white;
+            }
+            else if (audioModeEnum == NdiSender.AudioMode.ObjectBased)
+            {
+#if OSC_JACK
+                EditorGUILayout.PropertyField(_sendAdmOsc);
+                if (_sendAdmOsc.Target.boolValue)
+                {
+                    EditorGUILayout.PropertyField(_oscConnection);
+                    EditorGUILayout.PropertyField(_admSettings);
+                }
+#endif
             }
             else
                 EditorGUILayout.PropertyField(virtualListenerDistance);

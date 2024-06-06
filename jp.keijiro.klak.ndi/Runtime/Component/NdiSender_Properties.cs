@@ -1,4 +1,7 @@
 using Klak.Ndi.Audio;
+#if OSC_JACK
+using OscJack;
+#endif
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -27,7 +30,13 @@ public sealed partial class NdiSender : MonoBehaviour
     public bool useCameraPositionForVirtualAttenuation = false;
     public int maxObjectBasedChannels = 32;
     public SpeakerConfig customSpeakerConfig;
-    
+   
+#if OSC_JACK
+    [SerializeField] private bool _sendAdmOsc = false;
+    [SerializeField] OscConnection _oscConnection;
+    [SerializeField] private AdmOscSender.AdmSettings _admSettings = new AdmOscSender.AdmSettings(0.1f, 10f);
+
+#endif    
     public string ndiName
       { get => _ndiNameRuntime;
         set => SetNdiName(value); }

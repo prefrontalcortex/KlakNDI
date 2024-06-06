@@ -1,4 +1,9 @@
+#if OSC_JACK
+using OscJack;
+#endif
+
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Klak.Ndi {
 
@@ -87,7 +92,12 @@ public sealed partial class NdiReceiver : MonoBehaviour
     #region Audio Settings
 
     public float virtualSpeakerDistances = 10f;
-
+#if OSC_JACK
+    [SerializeField] private bool _sendAdmOsc = false;
+    [SerializeField] OscConnection _oscConnection;
+    [SerializeField] private AdmOscSender.AdmSettings _admSettings = new AdmOscSender.AdmSettings(0.1f, 10f);
+#endif
+    
     #endregion
 }
 
