@@ -540,9 +540,13 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				{
 					if (_audioFramesBuffer.Count == 0)
 					{
+						if (_channelVisualisations == null || _channelVisualisations.Length != channels)
+                            _channelVisualisations = new float[channels];
 						Array.Fill(_channelVisualisations, 0f);
 						lock (_audioMetaLock)
 						{
+							if (_receivedSpeakerPositions == null || _receivedSpeakerPositions.Length != 0)
+                                _receivedSpeakerPositions = new Vector3[channels];
 							Array.Fill(_receivedSpeakerPositions, Vector3.zero);
 						}
 
