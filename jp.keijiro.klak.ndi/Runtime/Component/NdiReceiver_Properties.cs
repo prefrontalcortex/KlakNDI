@@ -47,6 +47,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
       { get => _targetMaterialProperty;
         set => _targetMaterialProperty = value; }
 
+    [SerializeField] bool _receiveAudio = true;
     [SerializeField] AudioSource _audioSource = null;
     [Tooltip("When receiving more audio channels than the current audio device is capable of , create virtual speakers for each channel.")]
     [SerializeField] bool _createVirtualSpeakers = true;

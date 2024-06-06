@@ -26,6 +26,7 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
     AutoProperty _targetMaterialProperty;
     AutoProperty _audioSource;
     AutoProperty _createVirtualSpeakers;
+    AutoProperty _receiveAudio;
 #if OSC_JACK
     AutoProperty _sendAdmOsc;
     AutoProperty _oscConnection;
@@ -121,7 +122,8 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
 
         EditorGUI.BeginChangeCheck();
         var currentIndex = _createVirtualSpeakers.Target.boolValue ? 1 : 0;
-        var newIndex = EditorGUILayout.Popup("Audio Receiver Mode", currentIndex, new[] { "Automatic by channel count", "Always create Virtual Speakers" });
+        if (!_receiveAudio.Target.boolValue) currentIndex = 2;
+        var newIndex = EditorGUILayout.Popup("Audio Receiver Mode", currentIndex, new[] { "Automatic by channel count", "Always create Virtual Speakers", "None" });
         if (currentIndex == 0)
         {
             EditorGUI.indentLevel++;
@@ -132,6 +134,13 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
             EditorGUILayout.PropertyField(_audioSource);
             EditorGUI.indentLevel--;
         }
+        var audioSourceChanged = EditorGUI.EndChangeCheck();
+        if (currentIndex != newIndex)
+        {
+            _createVirtualSpeakers.Target.boolValue = newIndex == 1;
+            _receiveAudio.Target.boolValue = newIndex != 2;
+        }
+        
 #if OSC_JACK
         GUILayout.BeginVertical(GUI.skin.box);
         EditorGUILayout.LabelField("Object Based Audio", EditorStyles.boldLabel);
@@ -143,12 +152,6 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
         }
         GUILayout.EndVertical();
 #endif
-        // EditorGUILayout.PropertyField(_createVirtualSpeakers);
-        var audioSourceChanged = EditorGUI.EndChangeCheck();
-        if (currentIndex != newIndex)
-        {
-            _createVirtualSpeakers.Target.boolValue = newIndex == 1;
-        }
 
         serializedObject.ApplyModifiedProperties();
 
