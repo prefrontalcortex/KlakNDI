@@ -821,7 +821,10 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		DestroyAudioSourceBridge();
 		ParkAllVirtualSpeakers();
 
-		if (!_receiveAudio) return;
+		if (!_receiveAudio)
+		{
+			return;
+		}
 		
 		var audioConfiguration = AudioSettings.GetConfiguration();
 		if (!_receivingObjectBasedAudio)
