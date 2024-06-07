@@ -138,7 +138,35 @@ namespace Klak.Ndi.Audio
                 for (int i = 0; i < length; i++)
                     for (int c = 0; c < destinationChannelCo; c++)
                         destination[i * destinationChannelCo + c] = monoSource[i] * math.abs(destination[i * destinationChannelCo + c]);
-            }            
+            }
+
+            [BurstCompile]
+            public static unsafe void ResampleAudioData(float* sourceData, float* destData, int sourceSampleCount, int sourceSampleRate,
+                int destSampleRate, int destSampleCount, int channelCount)
+            {
+                float ratio = (float) sourceSampleRate / destSampleRate;
+                float step = 1.0f / ratio;
+                float position = 0;
+                for (int i = 0; i < sourceSampleCount; i++)
+                {
+                    for (int c = 0; c < channelCount; c++)
+                    {
+                        int destIndex = i * channelCount + c;
+                        if (destIndex >= 0 && destIndex < destSampleCount)
+                            destData[destIndex] = sourceData[(int) position * channelCount + c];
+                    }
+
+                    position += step;
+                }
+            }
+            
+            [BurstCompile]
+            public static unsafe void PlanarToInterleaved(float* planarData, int planarOffset, float* destData, int destOffset, int channels, int length)
+            {
+                for (int i = 0; i < length; i++)
+                    for (int c = 0; c < channels; c++)
+                        destData[destOffset + (i * channels + c)] = planarData[planarOffset + i + c];
+            }
             
             [BurstCompile]
             internal static float LogAttenuation(float distance, float minDistance, float maxDistance)

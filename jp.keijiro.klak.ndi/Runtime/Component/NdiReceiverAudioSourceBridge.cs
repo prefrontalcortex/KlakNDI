@@ -85,7 +85,7 @@ namespace Klak.Ndi
 			}
 			else
 			{
-				if (!_handler.HandleAudioFilterRead(data, channels))
+				if (!_handler.FillPassthroughData(ref data, channels))
 					Array.Fill(data, 0f);
 			}
 		}

@@ -41,9 +41,6 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
         _converter?.Dispose();
         _converter = null;
-
-		if(m_aTempAudioPullBuffer.IsCreated)
-			m_aTempAudioPullBuffer.Dispose();
 	}
 
 	#endregion
@@ -241,16 +238,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	#region Audio implementation
 
 	private readonly object					audioBufferLock = new object();
-	private const int						BUFFER_SIZE = 1024 * 32;
-	private CircularBuffer<float>			audioBuffer = new CircularBuffer<float>(BUFFER_SIZE);
 	//
-	private bool							m_bWaitForBufferFill = true;
 	private const int						m_iMinBufferAheadFrames = 8;
 	//
-	private NativeArray<byte>				m_aTempAudioPullBuffer;
-	private Interop.AudioFrameInterleaved	interleavedAudio = new Interop.AudioFrameInterleaved();
-	//
-	private float[]							m_aTempSamplesArray = new float[ 1024 * 32 ];
 	
 	private int _expectedAudioSampleRate;
 	private int _systemAvailableAudioChannels;
@@ -380,7 +370,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		if (channels != _receivedAudioChannels)
 			return;
 		
-		if (!HandleAudioFilterRead(data, channels))
+		if (!FillPassthroughData(ref data, channels))
 			Array.Fill(data, 0f);
 	}
 
@@ -414,7 +404,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 					frame = new AudioFrameData();
 				else
 					frame = _audioFramesPool.Dequeue();
-				frame.Set(audioFrame);
+				
+				frame.Set(audioFrame, _expectedAudioSampleRate);
 
 				_newAudioFramesBuffer.Add(frame);
 
@@ -428,6 +419,94 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				return frame;
 			}
 		}
+	}
+
+	internal bool FillPassthroughData(ref float[] data, int channelCountInData)
+	{ 
+		if (!PullNextAudioFrame(data.Length / channelCountInData, channelCountInData))
+			Array.Fill(data, 0f);
+
+		using (FILL_AUDIO_CHANNEL_DATA_MARKER.Auto())
+		{
+			lock (audioBufferLock)
+			{
+				if (_audioFramesBuffer.Count == 0)
+					return false;
+
+				int frameSize = data.Length / channelCountInData;
+
+				int frameIndex = 0;
+				int samplesCopied = 0;
+				int maxChannels = _audioFramesBuffer.Max(f => f.noChannels);
+				unsafe
+				{
+					var dataPtr = UnsafeUtility.PinGCArrayAndGetDataAddress(data, out var handle);
+					var nativeData =
+						NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<float>(dataPtr, data.Length,
+							Allocator.None);
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+					var safety = AtomicSafetyHandle.Create();
+					NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeData, safety);
+#endif
+
+					var destPtr = (float*)dataPtr;
+
+					do
+					{
+						AudioFrameData _currentAudioFrame;
+						if (frameIndex >= _audioFramesBuffer.Count)
+						{
+							for (int i = 0; i < frameIndex; i++)
+							{
+								for (int c = 0; c < _audioFramesBuffer[i].channelSamplesReaded.Length; c++)
+									_audioFramesBuffer[i].channelSamplesReaded[c] = 0;
+							}
+
+							return false;
+						}
+
+						_currentAudioFrame = _audioFramesBuffer[frameIndex];
+						
+						if (channelCountInData != _currentAudioFrame.noChannels)
+						{
+							for (int i = samplesCopied; i < data.Length; i++)
+							{
+								data[i] = 0f;
+							}
+
+							break;
+						}
+
+						var audioFrameData = _currentAudioFrame.GetAllChannelsArray();
+						//var channelData = _currentAudioFrame.GetChannelArray(channelNo, frameSize);
+
+						var audioFrameSamplesReaded = _audioFramesBuffer[frameIndex].channelSamplesReaded[0];
+						int samplesToCopy = Mathf.Min(frameSize, _currentAudioFrame.samplesPerChannel - audioFrameSamplesReaded);
+
+						for (int i = 0; i < _currentAudioFrame.noChannels; i++)
+							_currentAudioFrame.channelSamplesReaded[i] += samplesToCopy;
+						
+						var channelDataPtr = (float*)audioFrameData.GetUnsafePtr();
+						samplesToCopy *= channelCountInData;
+
+						VirtualAudio.BurstMethods.PlanarToInterleaved(channelDataPtr, audioFrameSamplesReaded, destPtr, samplesCopied, channelCountInData, samplesToCopy );
+
+						samplesCopied += samplesToCopy;
+						frameIndex++;
+					} while (samplesCopied < frameSize);
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+					AtomicSafetyHandle.Release(safety);
+#endif
+					UnsafeUtility.ReleaseGCObject(handle);
+				}
+
+				Util.UpdateVUMeter(ref _channelVisualisations, data, maxChannels);
+			}
+
+			return true;
+		}
+		
 	}
 	
 	internal bool FillAudioChannelData(ref float[] data, int channelNo, int channelCountInData, bool dataContainsSpatialData = false)
@@ -484,12 +563,11 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 						var channelData = _currentAudioFrame.GetChannelArray(channelNo, frameSize);
 
-						int samplesToCopy = Mathf.Min(frameSize, channelData.Length);
-						_currentAudioFrame.channelSamplesReaded[channelNo] += samplesToCopy;
+						var audioFrameSamplesReaded = _currentAudioFrame.channelSamplesReaded[channelNo];
+						int samplesToCopy = Mathf.Min(frameSize, channelData.Length-audioFrameSamplesReaded);
 
 
 						var channelDataPtr = (float*)channelData.GetUnsafePtr();
-						var audioFrameSamplesReaded = _audioFramesBuffer[frameIndex].channelSamplesReaded[channelNo];
 
 						if (dataContainsSpatialData)
 							VirtualAudio.BurstMethods.UpMixMonoWithDestination(channelDataPtr, audioFrameSamplesReaded,
@@ -498,6 +576,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 							VirtualAudio.BurstMethods.UpMixMono(channelDataPtr, audioFrameSamplesReaded, destPtr,
 								samplesCopied, channelCountInData, samplesToCopy);
 
+						_currentAudioFrame.channelSamplesReaded[channelNo] += samplesToCopy;
 
 						samplesCopied += samplesToCopy;
 						frameIndex++;
@@ -576,7 +655,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				if (availableSamples < frameSize)
 					return false;
 
-				if (_audioFramesBuffer.Count > 0)
+				if (_audioFramesBuffer.Count > 0 && _audioFramesBuffer[0].speakerPositions != null)
 				{
 					lock (_audioMetaLock)
 					{
@@ -600,54 +679,6 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				return true;
 			}
 		}
-	}
-	
-	internal bool HandleAudioFilterRead(float[] data, int channels)
-	{
-		int length = data.Length;
-
-		// STE: Waiting for enough read ahead buffer frames?
-		if (m_bWaitForBufferFill)
-		{
-			// Are we good yet?
-			// Should we be protecting audioBuffer.Size here?
-			m_bWaitForBufferFill = ( audioBuffer.Size < (length * m_iMinBufferAheadFrames) );
-
-			// Early out if not enough in the buffer still
-			if (m_bWaitForBufferFill)
-			{
-				return false;
-			}
-		}
-
-		bool bPreviousWaitForBufferFill = m_bWaitForBufferFill;
-		int iAudioBufferSize = 0;
-		int bufferCapacity = 0;
-
-		// STE: Lock buffer for the smallest amount of time
-		lock (audioBufferLock)
-		{
-			iAudioBufferSize = audioBuffer.Size;
-			bufferCapacity = audioBuffer.Capacity;
-
-			// If we do not have enough data for a single frame then we will want to buffer up some read-ahead audio data. This will cause a longer gap in the audio playback, but this is better than more intermittent glitches I think
-			m_bWaitForBufferFill = (iAudioBufferSize < length);
-			if( !m_bWaitForBufferFill )
-			{
-				audioBuffer.Front( ref data, length );
-				audioBuffer.PopFront( length );
-
-				Util.UpdateVUMeter(ref _channelVisualisations, data, channels);
-			}
-		}
-
-		if ( m_bWaitForBufferFill && !bPreviousWaitForBufferFill )
-		{
-			Debug.LogWarning($"Audio buffer underrun: OnAudioFilterRead: data.Length = {data.Length} | audioBuffer.Size = {iAudioBufferSize} | audioBuffer.Capacity = {bufferCapacity}", this);
-			return false;
-		}
-
-		return true;
 	}
 	
 	#region Virtual Speakers
@@ -972,94 +1003,6 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		}
 
 		AddAudioFrameToQueue(audio);
-		return;
-
-		int totalSamples = 0;
-
-		// If the received data's format is as expected we can convert from interleaved to planar and just memcpy
-		if (_receivedAudioSampleRate == _expectedAudioSampleRate) 
-		{
-			// Converted from NDI C# Managed sample code
-			// we're working in bytes, so take the size of a 32 bit sample (float) into account
-			int sizeInBytes = audio.NoSamples * audio.NoChannels * sizeof(float);
-
-			// Unity is expecting interleaved audio and NDI uses planar.
-			// create an interleaved frame and convert from the one we received
-			interleavedAudio.SampleRate = audio.SampleRate;
-			interleavedAudio.NoChannels = audio.NoChannels;
-			interleavedAudio.NoSamples = audio.NoSamples;
-			interleavedAudio.Timecode = audio.Timecode;
-
-			// allocate native array to copy interleaved data into
-			unsafe
-			{
-				if (!m_aTempAudioPullBuffer.IsCreated || m_aTempAudioPullBuffer.Length < sizeInBytes)
-				{
-					if (m_aTempAudioPullBuffer.IsCreated)
-						m_aTempAudioPullBuffer.Dispose();
-
-					m_aTempAudioPullBuffer = new NativeArray<byte>(sizeInBytes, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-				}
-
-				interleavedAudio.Data = (IntPtr)m_aTempAudioPullBuffer.GetUnsafePtr();
-				if (interleavedAudio.Data != null)
-				{
-					// Convert from float planar to float interleaved audio
-					_recv.AudioFrameToInterleaved(ref audio, ref interleavedAudio);
-					int channels = _usingVirtualSpeakers ? _virtualSpeakersCount : _systemAvailableAudioChannels;
-
-					totalSamples = interleavedAudio.NoSamples * channels;
-					void* audioDataPtr = interleavedAudio.Data.ToPointer();
-
-					if (audioDataPtr != null)
-					{
-						if (m_aTempSamplesArray.Length < totalSamples)
-						{
-							m_aTempSamplesArray = new float[totalSamples];
-						}
-
-						// Grab data from native array
-						var tempSamplesPtr = UnsafeUtility.PinGCArrayAndGetDataAddress(m_aTempSamplesArray, out ulong tempSamplesHandle);
-						UnsafeUtility.MemCpy(tempSamplesPtr, audioDataPtr, totalSamples * sizeof(float));
-						UnsafeUtility.ReleaseGCObject(tempSamplesHandle);
-					}
-				}
-			}
-		}
-		// If we need to resample or remap channels we can just work with the interleaved data as is
-		else
-		{
-			unsafe
-			{
-				void* audioDataPtr = audio.Data.ToPointer();
-
-				var resamplingRate = (float)_receivedAudioSampleRate / _expectedAudioSampleRate;
-				var needsToResample = resamplingRate != 1;
-				var neededSamples = needsToResample ? (int)(audio.NoSamples / resamplingRate) : audio.NoSamples;
-
-				int channels = _usingVirtualSpeakers ? _virtualSpeakersCount : _systemAvailableAudioChannels;
-				totalSamples = neededSamples * channels;
-
-				for (int i = 0; i < neededSamples; i++)
-				{
-					for (int j = 0; j < channels; j++)
-						m_aTempSamplesArray[i * channels + j] = ReadAudioDataSampleInterleaved(audio, audioDataPtr, i, j, resamplingRate);
-				}
-				
-			}
-		}
-		//Debug.Log("RECV AUDIO FRAME: "+totalSamples+ " "+AudioSettings.dspTime);
-
-		// Copy new sample data into the circular array
-		lock (audioBufferLock)
-		{
-			if (audioBuffer.Capacity < totalSamples * m_iMinBufferAheadFrames)
-			{
-				audioBuffer = new CircularBuffer<float>(totalSamples * m_iMinBufferAheadFrames);
-			}
-
-			audioBuffer.PushBack(m_aTempSamplesArray, totalSamples);
-		}
 	}
 
 	private unsafe float ReadAudioDataSampleInterleaved(Interop.AudioFrame audio, void* audioDataPtr, int sampleIndex, int channelIndex, float resamplingRate)
@@ -1079,24 +1022,6 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 		return Mathf.Lerp(lowerSample, upperSample, t);
 	}
-
-	//private unsafe float ReadAudioDataSamplePlanar(void* audioDataPtr, int sampleIndex, int channelIndex, float resamplingRate)
-	//{
-	//	if (resamplingRate == 1)
-	//		return UnsafeUtility.ReadArrayElement<float>(audioDataPtr, sampleIndex * interleavedAudio.NoChannels + channelIndex);
-
-	//	var resamplingIndex = (int)(sampleIndex * resamplingRate);
-	//	var t = (sampleIndex * resamplingRate) - resamplingIndex;
-
-	//	var lowerSample = UnsafeUtility.ReadArrayElement<float>(audioDataPtr, resamplingIndex * interleavedAudio.NoChannels + channelIndex);
-
-	//	if (Mathf.Approximately(t, 0))
-	//		return lowerSample;
-
-	//	var upperSample = UnsafeUtility.ReadArrayElement<float>(audioDataPtr, (resamplingIndex + 1) * interleavedAudio.NoChannels + channelIndex);
-
-	//	return Mathf.Lerp(lowerSample, upperSample, t);
-	//}
 
 	#endregion
 
