@@ -80,9 +80,7 @@ public sealed partial class NdiSender : MonoBehaviour
     private object _channelObjectLock = new object();
     private List<NativeArray<float>> _objectBasedChannels = new List<NativeArray<float>>();
     private List<Vector3> _objectBasedPositions = new List<Vector3>();
-#if OSC_JACK
-    private AdmOscSender _admOscSender;
-#endif
+    private List<float> _objectBasedGains = new List<float>();
     
 #if UNITY_EDITOR
     private void OnDrawGizmosSelected()
@@ -242,26 +240,28 @@ public sealed partial class NdiSender : MonoBehaviour
             SendCustomListenerData();
         }
     }
-    
+
     private void SendObjectBasedChannels()
     {
         lock (_channelObjectLock)
         {
-            bool hasDataToSend = VirtualAudio.GetObjectBasedAudio(out var stream, out int samplesCount, _objectBasedChannels, _objectBasedPositions, maxObjectBasedChannels);
+            bool hasDataToSend = VirtualAudio.GetObjectBasedAudio(out var stream, out int samplesCount, _objectBasedChannels, _objectBasedPositions, _objectBasedGains, maxObjectBasedChannels);
             if (!hasDataToSend)
             {
                 lock (_channelVisualisationsLock)
-                    Array.Fill(_channelVisualisations, 0f);
+                    if (_channelVisualisations != null)
+                        Array.Fill(_channelVisualisations, 0f);
                 
                 return;
             }
             lock (_channelVisualisationsLock)
-                Util.UpdateVUMeter(ref _channelVisualisations, _objectBasedChannels);
-
-#if OSC_JACK
-            if (_admOscSender != null)
-                _admOscSender.SendMeta(_objectBasedPositions);
-#endif
+                    Util.UpdateVUMeter(ref _channelVisualisations, _objectBasedChannels);
+            
+            var admData = new AdmData();
+            admData.positions = _objectBasedPositions;
+            admData.gains = _objectBasedGains;
+            lock (_admEventLock)
+                _onAdmDataChanged?.Invoke(admData);
             
             SendChannels(stream, samplesCount, _objectBasedChannels.Count, true);
         }
@@ -295,6 +295,9 @@ public sealed partial class NdiSender : MonoBehaviour
 
             unsafe
             {
+                if (!stream.IsCreated || stream.Length == 0)
+                    return;
+                
                 var frame = new Interop.AudioFrame
                 {
                     SampleRate = sampleRate,
@@ -333,24 +336,11 @@ public sealed partial class NdiSender : MonoBehaviour
 
         
         var xml = _audioMode == AudioMode.ObjectBased ? 
-            AudioMeta.GenerateObjectBasedConfigXmlMetaData(_objectBasedPositions) 
+            AudioMeta.GenerateObjectBasedConfigXmlMetaData(_objectBasedPositions, _objectBasedGains) 
             : AudioMeta.GenerateSpeakerConfigXmlMetaData();
         
         _metaDataPtr = Marshal.StringToCoTaskMemAnsi(xml);    
     }
-    
-#if OSC_JACK
-    public void SetupAndStartOsc(string host, int port = 9000)
-    {
-        OscConnection connection = new OscConnection();
-        connection.host = host;
-        connection.port = 9000;
-        _oscConnection = connection;
-        if (_admOscSender != null)
-            _admOscSender.Dispose();
-        _admOscSender = new AdmOscSender(_oscConnection);
-    }
-#endif
     
     private void SendAudioListenerData(float[] data, int channels)
     {
@@ -635,11 +625,6 @@ public sealed partial class NdiSender : MonoBehaviour
 
     void OnDestroy()
     {
-#if OSC_JACK
-        if (_admOscSender != null)
-            _admOscSender.Dispose();
-#endif		
-        
         Restart(false);
     } 
         

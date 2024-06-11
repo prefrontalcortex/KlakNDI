@@ -76,6 +76,9 @@ static class Util
             Array.Fill(vuMeter, 0f);
         }
 
+        if (vuMeter.Length == 0)
+            return;
+        
         vuMeter[channelIndex] = 0f;
         for (int i = 0; i < channelData.Length; i ++)
         {

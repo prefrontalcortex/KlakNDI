@@ -1,15 +1,13 @@
+using System;
 using Klak.Ndi.Audio;
-#if OSC_JACK
-using OscJack;
-#endif
 using UnityEngine;
-using UnityEngine.Serialization;
+using UnityEngine.Events;
 
 namespace Klak.Ndi {
 
 public enum CaptureMethod { GameView, Camera, Texture }
 
-public sealed partial class NdiSender : MonoBehaviour
+public sealed partial class NdiSender : MonoBehaviour, IAdmDataProvider
 {
     #region NDI source settings
 
@@ -30,13 +28,7 @@ public sealed partial class NdiSender : MonoBehaviour
     public bool useCameraPositionForVirtualAttenuation = false;
     public int maxObjectBasedChannels = 32;
     public SpeakerConfig customSpeakerConfig;
-   
-#if OSC_JACK
-    [SerializeField] private bool _sendAdmOsc = false;
-    [SerializeField] OscConnection _oscConnection;
-    [SerializeField] private AdmOscSender.AdmSettings _admSettings = new AdmOscSender.AdmSettings(0.1f, 10f);
-
-#endif    
+    
     public string ndiName
       { get => _ndiNameRuntime;
         set => SetNdiName(value); }
@@ -132,20 +124,28 @@ public sealed partial class NdiSender : MonoBehaviour
     void Awake()
     {
     #endif
-        
-#if OSC_JACK
-        if (_sendAdmOsc)
-        {
-            _admOscSender = new AdmOscSender(_oscConnection);
-            _admOscSender.SetSettings(_admSettings);
-        }
-#endif
         ndiName = _ndiName;
         captureMethod = _captureMethod;
         sourceCamera = _sourceCamera;
     }
 
     #endregion
+    
+    private event AdmDataChangedDelegate _onAdmDataChanged;
+
+    private object _admEventLock = new object();
+    
+    public void RegisterAdmDataChangedEvent(AdmDataChangedDelegate callback)
+    {
+        lock (_admEventLock)
+            _onAdmDataChanged += callback;
+    }
+
+    public void UnregisterAdmDataChangedEvent(AdmDataChangedDelegate callback)
+    {
+        lock (_admEventLock)
+            _onAdmDataChanged -= callback;
+    }
 }
 
 } // namespace Klak.Ndi

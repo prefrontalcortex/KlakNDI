@@ -3,9 +3,6 @@ using System.Collections.Generic;
 using Klak.Ndi.Audio;
 using UnityEngine;
 using UnityEditor;
-#if OSC_JACK
-using OscJack;
-#endif
 
 namespace Klak.Ndi.Editor {
 
@@ -20,19 +17,15 @@ sealed class NdiSenderEditor : UnityEditor.Editor
 
     #pragma warning disable CS0649
 
-    AutoProperty _ndiName;
-    AutoProperty _keepAlpha;
-    AutoProperty _captureMethod;
-    AutoProperty _sourceCamera;
-    AutoProperty _sourceTexture;
-    AutoProperty audioMode;
-    AutoProperty virtualListenerDistance;
-#if OSC_JACK
-    AutoProperty _sendAdmOsc;
-    AutoProperty _oscConnection;
-    AutoProperty _admSettings;
-#endif
-
+    private AutoProperty _ndiName;
+    private AutoProperty _keepAlpha;
+    private AutoProperty _captureMethod;
+    private AutoProperty _sourceCamera;
+    private AutoProperty _sourceTexture;
+    private AutoProperty audioMode;
+    private AutoProperty virtualListenerDistance;
+    private AutoProperty maxObjectBasedChannels;
+    
     private AutoProperty customSpeakerConfig;
     private AutoProperty useCameraPositionForVirtualAttenuation;
 
@@ -149,14 +142,7 @@ sealed class NdiSenderEditor : UnityEditor.Editor
             }
             else if (audioModeEnum == NdiSender.AudioMode.ObjectBased)
             {
-#if OSC_JACK
-                EditorGUILayout.PropertyField(_sendAdmOsc);
-                if (_sendAdmOsc.Target.boolValue)
-                {
-                    EditorGUILayout.PropertyField(_oscConnection);
-                    EditorGUILayout.PropertyField(_admSettings);
-                }
-#endif
+                EditorGUILayout.PropertyField(maxObjectBasedChannels);
             }
             else
                 EditorGUILayout.PropertyField(virtualListenerDistance);
@@ -257,6 +243,22 @@ sealed class NdiSenderEditor : UnityEditor.Editor
             {
                 EditorGUILayout.HelpBox($"Missing AudioListener on this GameObject. Please add one, otherwise no audio will be send.", MessageType.Error);
             }
+            
+#if OSC_JACK
+            if (!ndiSender.GetComponent<AdmOscSender>())
+            {
+                GUILayout.Label("Object Based Audio:");
+                if (GUILayout.Button("Add ADM OSC Sender Component", GUILayout.Height(30)))
+                {
+                    var oscSender = ndiSender.gameObject.AddComponent<AdmOscSender>();
+                }
+            }
+#else
+            GUILayout.Label("Add package OscJack to send object based audio position over OSC");
+            GUI.enabled = false;
+            GUILayout.TextField("https://github.com/keijiro/OscJack");
+            GUI.enabled = true;
+#endif  
         }
     }
 }
