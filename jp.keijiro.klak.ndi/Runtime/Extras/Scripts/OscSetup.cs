@@ -1,4 +1,3 @@
-using System;
 using Klak.Ndi;
 using TMPro;
 using UnityEngine;
@@ -6,6 +5,9 @@ using UnityEngine.UI;
 
 public class OscSetup : MonoBehaviour
 {
+#if !OSC_JACK
+    [Header("[Please add OSC JACK to your project > https://github.com/keijiro/OscJack]")]
+#endif
     [SerializeField] private AdmOscSender _oscSender;
     [SerializeField] private TMP_InputField _ip;
     [SerializeField] private TMP_InputField _port;
@@ -15,7 +17,7 @@ public class OscSetup : MonoBehaviour
     [SerializeField] private TextMeshProUGUI _farDistanceValue;
     
     [SerializeField] private Toggle _enableToggle;
-
+#if OSC_JACK
     private void Awake()
     {
         if (_oscSender == null)
@@ -70,10 +72,13 @@ public class OscSetup : MonoBehaviour
             _port.text = port.ToString();
         }
     }
+#endif
 
     public void Set()
     {
+#if OSC_JACK
         _oscSender.ChangeHostIpAndPort(_ip.text, int.Parse(_port.text));
+#endif
     }
 
 }
