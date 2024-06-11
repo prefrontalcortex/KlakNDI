@@ -17,6 +17,7 @@ namespace Klak.Ndi
 		private NativeArray<float> data;
 		
 		public Vector3[] speakerPositions;
+		public float[] gains;
 		public bool isObjectBased = false;
 
 		public int[] channelSamplesReaded;
@@ -50,7 +51,7 @@ namespace Klak.Ndi
 
 			samplesPerChannel = audio.NoSamples;
 			if (meta != null)
-				speakerPositions = AudioMeta.GetSpeakerConfigFromXml(meta, out isObjectBased);
+				speakerPositions = AudioMeta.GetSpeakerConfigFromXml(meta, out isObjectBased, out gains);
 
 			if (requiredSampleRate != audio.SampleRate)
 			{

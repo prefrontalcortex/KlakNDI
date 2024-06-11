@@ -1,13 +1,9 @@
-#if OSC_JACK
-using OscJack;
-#endif
-
+using System;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace Klak.Ndi {
 
-public sealed partial class NdiReceiver : MonoBehaviour
+public sealed partial class NdiReceiver : MonoBehaviour, IAdmDataProvider
 {
     #region NDI source settings
 
@@ -93,13 +89,24 @@ public sealed partial class NdiReceiver : MonoBehaviour
     #region Audio Settings
 
     public float virtualSpeakerDistances = 10f;
-#if OSC_JACK
-    [SerializeField] private bool _sendAdmOsc = false;
-    [SerializeField] OscConnection _oscConnection;
-    [SerializeField] private AdmOscSender.AdmSettings _admSettings = new AdmOscSender.AdmSettings(0.1f, 10f);
-#endif
     
     #endregion
+  
+    private event AdmDataChangedDelegate _onAdmDataChanged;
+
+    private object _admEventLock = new object();
+    
+    public void RegisterAdmDataChangedEvent(AdmDataChangedDelegate callback)
+    {
+      lock (_admEventLock)
+        _onAdmDataChanged += callback;
+    }
+
+    public void UnregisterAdmDataChangedEvent(AdmDataChangedDelegate callback)
+    {
+      lock (_admEventLock)
+        _onAdmDataChanged -= callback;
+    }
 }
 
 } // namespace Klak.Ndi

@@ -57,14 +57,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 		tokenSource = new CancellationTokenSource();
 		cancellationToken = tokenSource.Token;
-#if OSC_JACK
-		if (_sendAdmOsc)
-		{
-			_admOscSender = new AdmOscSender(_oscConnection);
-			_admOscSender.SetSettings(_admSettings);
-		}
-#endif
-
+		
 		Task.Run(ReceiveFrameTask, cancellationToken);
 
 		UpdateAudioExpectations();
@@ -94,10 +87,6 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			_audioFramesBuffer.RemoveAt(0);
 		}
 		
-#if OSC_JACK
-		if (_admOscSender != null)
-			_admOscSender.Dispose();
-#endif		
 		tokenSource?.Cancel();
         ReleaseReceiverObjects();
 
@@ -248,7 +237,6 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private int _receivedAudioSampleRate;
 	private int _receivedAudioChannels;
 
-	private bool _hasAudioSource;
 	private AudioSourceBridge _audioSourceBridge;
 	private bool _usingVirtualSpeakers = false;
 	
@@ -265,22 +253,6 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private bool _updateAudioMetaSpeakerSetup = false;
 	private Vector3[] _receivedSpeakerPositions;
 	private bool _receivingObjectBasedAudio = false;
-	
-#if OSC_JACK
-	private AdmOscSender _admOscSender;
-	
-	public void SetupAndStartOsc(string host, int port = 9000)
-	{
-		OscConnection connection = new OscConnection();
-		connection.host = host;
-		connection.port = 9000;
-		_oscConnection = connection;
-		if (_admOscSender != null)
-			_admOscSender.Dispose();
-		_admOscSender = new AdmOscSender(_oscConnection);
-	}
-#endif
-
 	
 	public Vector3[] GetReceivedSpeakerPositions()
 	{
@@ -315,7 +287,6 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			newSource.bypassListenerEffects = true;
 			newSource.transform.SetParent(transform, false);
 			newSource.hideFlags = HideFlags.DontSave;
-			_hasAudioSource = true;
 			_audioSource = newSource;
 		}
 		
@@ -599,7 +570,6 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	{
 		using (PULL_NEXT_AUDIO_FRAME_MARKER.Auto())
 		{
-
 			lock (audioBufferLock)
 			{
 				for (int i = 0; i < _newAudioFramesBuffer.Count; i++)
@@ -659,12 +629,12 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				{
 					lock (_audioMetaLock)
 					{
+						var admData = new AdmData();
+						admData.positions = _audioFramesBuffer[0].speakerPositions.AsEnumerable();
+						admData.gains = _audioFramesBuffer[0].gains.AsEnumerable();
+						lock (_admEventLock)
+							_onAdmDataChanged?.Invoke(admData);
 						
-#if OSC_JACK
-						if (_admOscSender != null)
-							_admOscSender.SendMeta(_audioFramesBuffer[0].speakerPositions);
-#endif
-	
 						_receivingObjectBasedAudio = _audioFramesBuffer[0].isObjectBased;
 						_updateAudioMetaSpeakerSetup = true;
 						if (_receivedSpeakerPositions == null || _receivedSpeakerPositions.Length !=
@@ -685,7 +655,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 	void ParkAllVirtualSpeakers()
 	{
-		for (int i = 0; i < _virtualSpeakers.Count(); i++)
+		for (int i = 0; i < _virtualSpeakers.Count; i++)
 		{
 			_virtualSpeakers[i].speakerAudio.gameObject.SetActive(false);
 		}
@@ -956,7 +926,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	
 	void ReadAudioMetaData(string metadata)
 	{
-		var speakerSetup = AudioMeta.GetSpeakerConfigFromXml(metadata, out _receivingObjectBasedAudio);
+		var speakerSetup = AudioMeta.GetSpeakerConfigFromXml(metadata, out _receivingObjectBasedAudio, out _);
 		if (speakerSetup != null && speakerSetup.Length >= 0)
 		{
 			_updateAudioMetaSpeakerSetup = true;
@@ -980,16 +950,12 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		{
 			settingsChanged = true;
 			_receivedAudioSampleRate = audio.SampleRate;
-			if (_receivedAudioSampleRate != _expectedAudioSampleRate)
-				Debug.LogWarning($"Audio sample rate does not match. Expected {_expectedAudioSampleRate} but received {_receivedAudioSampleRate}.", this);
 		}
 
 		if((_usingVirtualSpeakers && audio.NoChannels != _virtualSpeakersCount) || _receivedAudioChannels != audio.NoChannels)
 		{
 			settingsChanged = true;
 			_receivedAudioChannels = audio.NoChannels;
-			if(_receivedAudioChannels != _systemAvailableAudioChannels)
-				Debug.LogWarning($"Audio channel count does not match. Expected {_systemAvailableAudioChannels} but received {_receivedAudioChannels}.", this);
 		}
 
 		if (audio.Metadata != null)

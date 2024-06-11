@@ -1,9 +1,6 @@
 using UnityEngine;
 using UnityEditor;
 using System.Linq;
-#if OSC_JACK
-using OscJack;
-#endif
 
 namespace Klak.Ndi.Editor {
 
@@ -20,22 +17,17 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
 
     #pragma warning disable CS0649
 
-    AutoProperty _ndiName;
-    AutoProperty _targetTexture;
-    AutoProperty _targetRenderer;
-    AutoProperty _targetMaterialProperty;
-    AutoProperty _audioSource;
-    AutoProperty _createVirtualSpeakers;
-    AutoProperty _receiveAudio;
-#if OSC_JACK
-    AutoProperty _sendAdmOsc;
-    AutoProperty _oscConnection;
-    AutoProperty _admSettings;
-#endif
+    private AutoProperty _ndiName;
+    private AutoProperty _targetTexture;
+    private AutoProperty _targetRenderer;
+    private AutoProperty _targetMaterialProperty;
+    private AutoProperty _audioSource;
+    private AutoProperty _createVirtualSpeakers;
+    private AutoProperty _receiveAudio;
     
     #pragma warning restore
-    bool _foldOutChannelIncome = true;
-    bool _foldOutReceivedSpeakerSetup = true;
+    private bool _foldOutChannelIncome = true;
+    private bool _foldOutReceivedSpeakerSetup = true;
 
     // NDI name dropdown
     void ShowNdiNameDropdown(Rect rect)
@@ -141,18 +133,6 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
             _receiveAudio.Target.boolValue = newIndex != 2;
         }
         
-#if OSC_JACK
-        GUILayout.BeginVertical(GUI.skin.box);
-        EditorGUILayout.LabelField("Object Based Audio", EditorStyles.boldLabel);
-        EditorGUILayout.PropertyField(_sendAdmOsc);
-        if (_sendAdmOsc.Target.boolValue)
-        {
-            EditorGUILayout.PropertyField(_oscConnection);
-            EditorGUILayout.PropertyField(_admSettings);
-        }
-        GUILayout.EndVertical();
-#endif
-
         serializedObject.ApplyModifiedProperties();
 
         // if (restart) RequestRestart();
@@ -160,9 +140,9 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
         if (audioSourceChanged)
             foreach (NdiReceiver receiver in targets) receiver.CheckPassthroughAudioSource();
 
+        var ndiReceiver = target as NdiReceiver;
         if (Application.isPlaying)
         {
-            var ndiReceiver = target as NdiReceiver;
             var channels = ndiReceiver.GetChannelVisualisations();
             
             if (channels != null)
@@ -199,6 +179,24 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
                     EditorGUILayout.EndFoldoutHeaderGroup();
                 }
             }
+        }
+        else
+        {
+#if OSC_JACK
+            if (!ndiReceiver.GetComponent<AdmOscSender>())
+            {
+                GUILayout.Label("Object Based Audio:");
+                if (GUILayout.Button("Add ADM OSC Sender Component", GUILayout.Height(30)))
+                {
+                    var oscSender = ndiReceiver.gameObject.AddComponent<AdmOscSender>();
+                }
+            }
+#else
+            GUILayout.Label("Add package OscJack to send object based audio position over OSC");
+            GUI.enabled = false;
+            GUILayout.TextField("https://github.com/keijiro/OscJack");
+            GUI.enabled = true;
+#endif
         }
     }
     

@@ -322,7 +322,7 @@ namespace Klak.Ndi.Audio
             return distanceFromCameraAvg;
         }
         
-        internal static bool GetObjectBasedAudio(out NativeArray<float> stream,  out int samples, List<NativeArray<float>> channels, List<Vector3> positions, int maxObjectBasedChannels)
+        internal static bool GetObjectBasedAudio(out NativeArray<float> stream,  out int samples, List<NativeArray<float>> channels, List<Vector3> positions, List<float> gains, int maxObjectBasedChannels)
         {
             lock (_audioSourcesData)
             lock (_speakerLockObject)
@@ -331,17 +331,14 @@ namespace Klak.Ndi.Audio
 
                 if (channels.Count != maxObjectBasedChannels || positions.Count != maxObjectBasedChannels)
                 {
-                    for (int i = 0; i < channels.Count; i++)
-                    {
-                        if (channels[i].IsCreated)
-                            channels[i].Dispose();
-                    }
                     channels.Clear();
                     positions.Clear();
+                    gains.Clear();
                     for (int i = 0; i < maxObjectBasedChannels; i++)
                     {
                         channels.Add( new NativeArray<float>(0, Allocator.Persistent));
                         positions.Add(Vector3.zero);
+                        gains.Add(0f);
                     }
                 }
 
@@ -401,6 +398,7 @@ namespace Klak.Ndi.Audio
                         continue;
                     channels[channel] = audioSource.Value.audioData;
                     positions[channel] = audioSource.Value.settings.position;
+                    gains[channel] = audioSource.Value.settings.volume;
                 }
 
                 // Reset Data for not used channels
@@ -410,6 +408,7 @@ namespace Klak.Ndi.Audio
                     {
                         channels[i] = new NativeArray<float>();
                         positions[i] = Vector3.zero;
+                        gains[i] = 0f;
                     }
                     else
                        NativeArray<float>.Copy(channels[i], 0, _audioSendStream, i * samples, samples);
