@@ -1,5 +1,7 @@
 using System;
+#if OSC_JACK
 using OscJack;
+#endif
 using UnityEngine;
 
 namespace Klak.Ndi
@@ -7,7 +9,6 @@ namespace Klak.Ndi
     [RequireComponent(typeof(IAdmDataProvider))]
     public class AdmOscSender : MonoBehaviour
     {
-#if OSC_JACK
         [Serializable]
         public struct AdmSettings
         {
@@ -20,9 +21,15 @@ namespace Klak.Ndi
                 farDistance = far;
             }
         }
+        
+#if !OSC_JACK
+        [Header("[Please add OSC JACK to your project > https://github.com/keijiro/OscJack]")]
+#endif
+        [SerializeField] private AdmSettings _settings = new AdmSettings(0.1f, 10f);
+        
+#if OSC_JACK
 
         [SerializeField] private OscConnection _connection = null;
-        [SerializeField] private AdmSettings _settings = new AdmSettings(0.1f, 10f);
 
         private OscClient _client;
         private OscConnection _customConnection;
