@@ -128,7 +128,7 @@ namespace Klak.Ndi.Audio
             {
                 for (int i = 0; i < length; i++)
                     for (int c = 0; c < destinationChannelCo; c++)
-                        destination[i * destinationChannelCo + c] = monoSource[i];
+                        destination[i * destinationChannelCo + c] = monoSource[i + sourceStartIndex];
             }
             
             [BurstCompile]
@@ -137,7 +137,7 @@ namespace Klak.Ndi.Audio
             {
                 for (int i = 0; i < length; i++)
                     for (int c = 0; c < destinationChannelCo; c++)
-                        destination[i * destinationChannelCo + c] = monoSource[i] * math.abs(destination[i * destinationChannelCo + c]);
+                        destination[i * destinationChannelCo + c] = monoSource[i + sourceStartIndex] * math.abs(destination[i * destinationChannelCo + c]);
             }
 
             [BurstCompile]
