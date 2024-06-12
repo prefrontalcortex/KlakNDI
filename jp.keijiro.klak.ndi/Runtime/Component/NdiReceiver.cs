@@ -228,7 +228,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 	private readonly object					audioBufferLock = new object();
 	//
-	private const int						m_iMinBufferAheadFrames = 8;
+	private const int						_MaxBufferSampleSize = 48000 / 5;
+	private const int						_MinBufferSampleSize = 48000 / 10;
 	//
 	
 	private int _expectedAudioSampleRate;
@@ -366,6 +367,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	
 	private AudioFrameData AddAudioFrameToQueue(AudioFrame audioFrame)
 	{
+		if (audioFrame.NoSamples == 0)
+			return null;
+		
 		using (ADD_AUDIO_FRAME_TO_QUEUE_MARKER.Auto())
 		{
 			lock (audioBufferLock)
@@ -379,8 +383,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				frame.Set(audioFrame, _expectedAudioSampleRate);
 
 				_newAudioFramesBuffer.Add(frame);
-
-				while (_newAudioFramesBuffer.Count > m_iMinBufferAheadFrames)
+				while ((_newAudioFramesBuffer.Count*audioFrame.NoSamples) > _MaxBufferSampleSize)
 				{
 					var f = _newAudioFramesBuffer[0];
 					_newAudioFramesBuffer.RemoveAt(0);
@@ -438,6 +441,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 						_currentAudioFrame = _audioFramesBuffer[frameIndex];
 						
+						// TODO: downmix to channelCountInData !!
+						
 						if (channelCountInData != _currentAudioFrame.noChannels)
 						{
 							for (int i = samplesCopied; i < data.Length; i++)
@@ -472,7 +477,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 					UnsafeUtility.ReleaseGCObject(handle);
 				}
 
-				Util.UpdateVUMeter(ref _channelVisualisations, data, maxChannels);
+				Util.UpdateVUMeter(ref _channelVisualisations, data, channelCountInData);
 			}
 
 			return true;
@@ -517,6 +522,10 @@ public sealed partial class NdiReceiver : MonoBehaviour
 								_audioFramesBuffer[i].channelSamplesReaded[channelNo] = 0;
 							}
 
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+							AtomicSafetyHandle.Release(safety);
+#endif
+							UnsafeUtility.ReleaseGCObject(handle);							
 							return false;
 						}
 
@@ -532,9 +541,21 @@ public sealed partial class NdiReceiver : MonoBehaviour
 							break;
 						}
 
-						var channelData = _currentAudioFrame.GetChannelArray(channelNo, frameSize);
+						var channelData = _currentAudioFrame.GetChannelArray(channelNo);
 
 						var audioFrameSamplesReaded = _currentAudioFrame.channelSamplesReaded[channelNo];
+						if (frameIndex == 0 && audioFrameSamplesReaded >= _currentAudioFrame.samplesPerChannel)
+						{
+							// For some reason PullAudioFrame was not called...so we break here 
+							for (int i = 0; i < data.Length; i++)
+								data[i] = 0f;
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+							AtomicSafetyHandle.Release(safety);
+#endif
+							UnsafeUtility.ReleaseGCObject(handle);
+							return false;
+						}
+						
 						int samplesToCopy = Mathf.Min(frameSize, channelData.Length-audioFrameSamplesReaded);
 
 
@@ -576,10 +597,12 @@ public sealed partial class NdiReceiver : MonoBehaviour
 					_audioFramesBuffer.Add(_newAudioFramesBuffer[i]);
 				_newAudioFramesBuffer.Clear();
 
-				if (_audioFramesBuffer.Count > m_iMinBufferAheadFrames)
+				if (_audioFramesBuffer.Count > 0 && (_audioFramesBuffer[0].samplesPerChannel*_audioFramesBuffer.Count) > _MaxBufferSampleSize)
 				{
-					while (_audioFramesBuffer.Count > m_iMinBufferAheadFrames)
+					int removeCounter = 0;
+					while (_audioFramesBuffer.Count > 0 && (_audioFramesBuffer[0].samplesPerChannel*_audioFramesBuffer.Count) > _MinBufferSampleSize)
 					{
+						removeCounter++;
 						var f = _audioFramesBuffer[0];
 						_audioFramesBuffer.RemoveAt(0);
 						_audioFramesPool.Enqueue(f);
@@ -604,7 +627,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 					}
 
 					var nextFrame = _audioFramesBuffer[0];
-					if (nextFrame.channelSamplesReaded.Sum() >= nextFrame.noChannels * nextFrame.samplesPerChannel)
+					int sampledReadSum = nextFrame.channelSamplesReaded.Sum();
+					if (sampledReadSum >= nextFrame.noChannels * nextFrame.samplesPerChannel)
 					{
 						_audioFramesPool.Enqueue(nextFrame);
 						_audioFramesBuffer.RemoveAt(0);
