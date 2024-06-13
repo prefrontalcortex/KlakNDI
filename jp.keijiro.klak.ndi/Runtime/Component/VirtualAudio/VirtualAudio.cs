@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -221,6 +220,12 @@ namespace Klak.Ndi.Audio
         private static readonly object _speakerLockObject = new object();
         private static readonly object _audioSourceLockObject = new object();
         private static NativeArray<float> _audioSendStream;
+        private static NativeArray<float> _testAudioData;
+        private static readonly object _testAudioLockObj = new object();
+        private static double _testAudioDspStartTime = -1;
+        
+        private static int _dspBufferSize;
+        private static int _sampleRate;
         
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Init()
@@ -235,6 +240,27 @@ namespace Klak.Ndi.Audio
             _speakerDotProducts = new NativeList<float>(50, AllocatorManager.Persistent);
             _weights = new NativeList<float>(50, AllocatorManager.Persistent);
             _distances = new NativeList<float>(50, AllocatorManager.Persistent);
+            
+            AudioSettings.GetDSPBufferSize(out _dspBufferSize, out int _);
+            _sampleRate = AudioSettings.outputSampleRate;
+        }
+        
+        public static void ActivateAudioTestMode(bool active)
+        {
+            lock (_testAudioLockObj)
+            {
+                _testMode = active;
+                _testAudioDspStartTime = AudioSettings.dspTime;
+            }
+        }
+
+        public static void SetAudioTestChannel(int channel)
+        {
+            lock (_testAudioLockObj)
+            {
+                _currentTestChannel = channel;
+                _testAudioDspStartTime = AudioSettings.dspTime;
+            }
         }
 
         private static void OnApplicationQuit()
@@ -344,6 +370,52 @@ namespace Klak.Ndi.Audio
             {
                 samples = 0;
 
+                if (_testMode)
+                {
+                    // Begin test mode
+                    samples = _dspBufferSize;
+                    if (!_testAudioData.IsCreated || _testAudioData.Length != samples)
+                    {
+                        if (_testAudioData.IsCreated)
+                            _testAudioData.Dispose();
+                        _testAudioData = new NativeArray<float>(samples, Allocator.Persistent);
+                    }
+                    
+                    if (!_audioSendStream.IsCreated || _audioSendStream.Length != maxObjectBasedChannels * samples)
+                        _audioSendStream = new NativeArray<float>(maxObjectBasedChannels * samples, Allocator.Persistent);
+
+                    unsafe
+                    {
+                        UnsafeUtility.MemClear(_audioSendStream.GetUnsafePtr(), _audioSendStream.Length * sizeof(float));
+                    }
+                    
+                    channels.Clear();
+                    positions.Clear();
+                    gains.Clear();
+                    for (int i = 0; i < maxObjectBasedChannels; i++)
+                    {
+                        if (i == _currentTestChannel)
+                        {
+                            GenerateTestSound(_testAudioData, 0, _testAudioData.Length);
+                            channels.Add( _testAudioData);
+                            positions.Add(Vector3.zero);
+                            gains.Add(1f);
+                            NativeArray<float>.Copy(channels[i], 0, _audioSendStream, i * samples, samples);
+                            
+                        }
+                        else
+                        {
+                            channels.Add( new NativeArray<float>());
+                            positions.Add(Vector3.zero);
+                            gains.Add(0f);
+                        }
+                    }
+
+                    stream = _audioSendStream;
+                    return true;
+                    // End test mode
+                }
+                
                 if (channels.Count != maxObjectBasedChannels || positions.Count != maxObjectBasedChannels)
                 {
                     channels.Clear();
@@ -351,7 +423,7 @@ namespace Klak.Ndi.Audio
                     gains.Clear();
                     for (int i = 0; i < maxObjectBasedChannels; i++)
                     {
-                        channels.Add( new NativeArray<float>(0, Allocator.Persistent));
+                        channels.Add( new NativeArray<float>());
                         positions.Add(Vector3.zero);
                         gains.Add(0f);
                     }
@@ -432,6 +504,23 @@ namespace Klak.Ndi.Audio
 
             return true;
         }
+
+        private static void GenerateTestSound(NativeArray<float> destination, int startIndex, int samples)
+        {
+            double offset;
+            lock (_testAudioLockObj)
+            {
+                if (_testAudioDspStartTime < 0)
+                    _testAudioDspStartTime = AudioSettings.dspTime;
+                offset = _testAudioDspStartTime;
+            }
+            for (int i = 0; i < samples; i++)
+            {
+                // Create a sinus wave
+                float v = 2f * Mathf.Sin(Mathf.PI * 2f * ((float)(AudioSettings.dspTime-offset) + (float)i / (float)(_sampleRate)));
+                destination[startIndex + i] = v;
+            }
+        }
         
         /// <summary>
         /// Get the final mixed audio channels
@@ -444,14 +533,17 @@ namespace Klak.Ndi.Audio
         internal static List<NativeArray<float>> GetMixedAudio(out NativeArray<float> stream, out int samples, Vector3 cameraPosition,
             bool useCameraPosForAttenuation = false)
         {
+            samples = 0;
+            stream = _audioSendStream;
+            List<NativeArray<float>> result = new List<NativeArray<float>>();
+            if (!_attenuationWeights.IsCreated)
+                return result;
+            
             _attenuationWeights.Clear();
             _spatialBlends.Clear();
             _speakerDotProducts.Clear();
             _distances.Clear();
-            stream = _audioSendStream;
-
-            List<NativeArray<float>> result = new List<NativeArray<float>>();
-
+            
             lock (_audioSourcesData)
             lock (_speakerLockObject)
             {
@@ -468,12 +560,6 @@ namespace Klak.Ndi.Audio
                     if (samples < audioSource.Value.audioData.Length)
                         samples = audioSource.Value.audioData.Length;
                 }
-
-                for (int iSpeaker = 0; iSpeaker < _listenerDatas.Count; iSpeaker++)
-                {
-                    var speaker = _listenerDatas[iSpeaker];
-                    speaker.ResetAudioData(samples);
-                }
                 
                 int streamSize = _listenerDatas.Count * samples; 
                 if (!_audioSendStream.IsCreated || _audioSendStream.Length != streamSize)
@@ -485,6 +571,28 @@ namespace Klak.Ndi.Audio
                 }
                 stream = _audioSendStream;
                 
+                if (_testMode)
+                {
+                    for (int iSpeaker = 0; iSpeaker < _listenerDatas.Count; iSpeaker++)
+                    {
+                        var speaker = _listenerDatas[iSpeaker];
+                        speaker.ResetAudioData(samples);
+                        result.Add(speaker.audioData);
+                        if (iSpeaker == _currentTestChannel)
+                        {
+                            GenerateTestSound(speaker.audioData, 0, speaker.audioData.Length);
+                        }
+                        NativeArray<float>.Copy(speaker.audioData, 0, _audioSendStream, iSpeaker * samples, samples);
+                    }
+                    
+                    return result;
+                }
+                
+                for (int iSpeaker = 0; iSpeaker < _listenerDatas.Count; iSpeaker++)
+                {
+                    var speaker = _listenerDatas[iSpeaker];
+                    speaker.ResetAudioData(samples);
+                }
                 
                 foreach (var audioSource in _audioSourcesData)
                 {
