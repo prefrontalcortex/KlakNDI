@@ -105,13 +105,13 @@ public sealed partial class NdiSender : MonoBehaviour
     private void ClearVirtualSpeakerListeners()
     {
         _useVirtualSpeakerListeners = false;
-        VirtualAudio.useVirtualAudio = false;
+        VirtualAudio.UseVirtualAudio = false;
         VirtualAudio.ClearAllVirtualSpeakerListeners();
     }
     
     private void CreateAudioSetup_Quad()
     {
-        VirtualAudio.useVirtualAudio = true;
+        VirtualAudio.UseVirtualAudio = true;
         VirtualAudio.ClearAllVirtualSpeakerListeners();
 
         float distance = virtualListenerDistance;
@@ -126,7 +126,7 @@ public sealed partial class NdiSender : MonoBehaviour
     
     private void CreateAudioSetup_5point1()
     {
-        VirtualAudio.useVirtualAudio = true;
+        VirtualAudio.UseVirtualAudio = true;
         VirtualAudio.ClearAllVirtualSpeakerListeners();
 
         float distance = virtualListenerDistance;
@@ -144,7 +144,7 @@ public sealed partial class NdiSender : MonoBehaviour
 
     private void CreateAudioSetup_7point1()
     {
-        VirtualAudio.useVirtualAudio = true;
+        VirtualAudio.UseVirtualAudio = true;
         VirtualAudio.ClearAllVirtualSpeakerListeners();
 
         float distance = virtualListenerDistance;
@@ -165,7 +165,7 @@ public sealed partial class NdiSender : MonoBehaviour
 
     private void CreateAudioSetup_32Array()
     {
-        VirtualAudio.useVirtualAudio = true;
+        VirtualAudio.UseVirtualAudio = true;
         VirtualAudio.ClearAllVirtualSpeakerListeners();
 
         float dotAdjust = 0.90f;
@@ -174,8 +174,8 @@ public sealed partial class NdiSender : MonoBehaviour
         {
             // Add 32 virtual speakers in a circle around the listener
             float angle = i * Mathf.PI * 2 / 32;
-            float x = Mathf.Cos(angle) * virtualListenerDistance;
-            float z = Mathf.Sin(angle) * virtualListenerDistance;
+            float x = Mathf.Sin(angle) * virtualListenerDistance;
+            float z = Mathf.Cos(angle) * virtualListenerDistance;
             VirtualAudio.AddListener(new Vector3(x, 0f, z), dotAdjust, 1f);
         }
         _useVirtualSpeakerListeners = true;
@@ -189,7 +189,7 @@ public sealed partial class NdiSender : MonoBehaviour
             Debug.LogError("No custom speaker config assigned!");
             return;
         }
-        VirtualAudio.useVirtualAudio = true;
+        VirtualAudio.UseVirtualAudio = true;
 
         var allSpeakers = customSpeakerConfig.GetAllSpeakers();
         for (int i = 0; i < allSpeakers.Length; i++)
@@ -550,7 +550,7 @@ public sealed partial class NdiSender : MonoBehaviour
                 CreateAudioSetup_bySpeakerConfig();
                 break;
             case AudioMode.ObjectBased:
-                VirtualAudio.useVirtualAudio = true;
+                VirtualAudio.UseVirtualAudio = true;
                 _useVirtualSpeakerListeners = true;
                 break;
             default:

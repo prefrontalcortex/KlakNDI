@@ -77,7 +77,7 @@ namespace Klak.Ndi
 						_lastFrameUpdate = AudioSettings.dspTime;
 				}
 
-				if (!_handler.FillAudioChannelData(ref data, _customChannel, channels, !_noSpatializerPlugin))
+				if (!_handler.FillAudioChannelData(ref data, _customChannel, channels, _noSpatializerPlugin))
 				{
 					Array.Fill(data, 0f);
 					return;
