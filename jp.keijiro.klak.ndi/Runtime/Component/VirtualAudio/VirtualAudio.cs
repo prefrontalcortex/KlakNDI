@@ -7,6 +7,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Events;
 
 namespace Klak.Ndi.Audio
 {
@@ -190,10 +191,24 @@ namespace Klak.Ndi.Audio
             }   
         }
 
-        internal static bool useVirtualAudio = false;
+        internal static bool UseVirtualAudio
+        {
+            get => _useVirtualAudio;
+            set
+            {
+                _useVirtualAudio = value;
+                OnVirtualAudioStateChanged.Invoke(_useVirtualAudio);
+            }
+        }
+
+        private static bool _useVirtualAudio = false; 
+        public static readonly UnityEvent<bool> OnVirtualAudioStateChanged = new UnityEvent<bool>();
+        
         internal static bool objectBasedAudio = false;
         private static int _audioSourceNextId = 0;
-
+        private static bool _testMode = false;
+        private static int _currentTestChannel = 0;
+        
         private static readonly Dictionary<int, AudioSourceData> _audioSourcesData = new Dictionary<int, AudioSourceData>();
         private static readonly List<ListenerData> _listenerDatas = new List<ListenerData>();
 

@@ -148,13 +148,39 @@ namespace Klak.Ndi.Audio
             _TmpSettings.spatialBlendCurve =  _audioSource.GetCustomCurve(AudioSourceCurveType.SpatialBlend);
         }
 
+        private void VirtualAudioStateChanged(bool active)
+        {
+            _audioSource.spatialize = VirtualAudio.UseVirtualAudio;
+            _audioSource.spatializePostEffects = VirtualAudio.UseVirtualAudio;
+
+            if (active)
+            {
+                lock (_lockObj)
+                {
+                    _audioSourceData = VirtualAudio.RegisterAudioSourceChannel();
+                }
+            }
+            else
+            {
+                lock (_lockObj)
+                {
+                    if (_audioSourceData != null)
+                    {
+                        VirtualAudio.UnRegisterAudioSource(_audioSourceData);
+                        _audioSourceData = null;
+                    }
+                }
+            }
+        }
+        
         private void OnEnable()
         {
             // We need raw audio data without any spatialization
-            _audioSource.spatialize = VirtualAudio.useVirtualAudio;
-            _audioSource.spatializePostEffects = VirtualAudio.useVirtualAudio;
+            _audioSource.spatialize = VirtualAudio.UseVirtualAudio;
+            _audioSource.spatializePostEffects = VirtualAudio.UseVirtualAudio;
+            VirtualAudio.OnVirtualAudioStateChanged.AddListener(VirtualAudioStateChanged);
 
-            if (!VirtualAudio.useVirtualAudio)
+            if (!VirtualAudio.UseVirtualAudio)
                 return;
             
             lock (_lockObj)
@@ -165,6 +191,7 @@ namespace Klak.Ndi.Audio
         
         private void OnDisable()
         {
+            VirtualAudio.OnVirtualAudioStateChanged.RemoveListener(VirtualAudioStateChanged);
             lock (_lockObj)
             {
                 if (_audioSourceData == null)
