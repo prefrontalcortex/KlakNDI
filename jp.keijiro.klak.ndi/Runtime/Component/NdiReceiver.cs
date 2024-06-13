@@ -423,6 +423,14 @@ public sealed partial class NdiReceiver : MonoBehaviour
 					NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeData, safety);
 #endif
 
+					void Release()
+					{
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+						AtomicSafetyHandle.Release(safety);
+#endif
+						UnsafeUtility.ReleaseGCObject(handle);
+					}
+
 					var destPtr = (float*)dataPtr;
 
 					do
@@ -435,7 +443,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 								for (int c = 0; c < _audioFramesBuffer[i].channelSamplesReaded.Length; c++)
 									_audioFramesBuffer[i].channelSamplesReaded[c] = 0;
 							}
-
+							Release();
 							return false;
 						}
 
@@ -471,10 +479,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 						frameIndex++;
 					} while (samplesCopied < frameSize);
 
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-					AtomicSafetyHandle.Release(safety);
-#endif
-					UnsafeUtility.ReleaseGCObject(handle);
+					Release();
 				}
 
 				Util.UpdateVUMeter(ref _channelVisualisations, data, channelCountInData);
@@ -510,6 +515,14 @@ public sealed partial class NdiReceiver : MonoBehaviour
 					NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeData, safety);
 #endif
 
+					void Release()
+					{
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+						AtomicSafetyHandle.Release(safety);
+#endif
+						UnsafeUtility.ReleaseGCObject(handle);
+					}
+					
 					var destPtr = (float*)dataPtr;
 
 					do
@@ -522,10 +535,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 								_audioFramesBuffer[i].channelSamplesReaded[channelNo] = 0;
 							}
 
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-							AtomicSafetyHandle.Release(safety);
-#endif
-							UnsafeUtility.ReleaseGCObject(handle);							
+							Release();							
 							return false;
 						}
 
@@ -549,10 +559,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 							// For some reason PullAudioFrame was not called...so we break here 
 							for (int i = 0; i < data.Length; i++)
 								data[i] = 0f;
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-							AtomicSafetyHandle.Release(safety);
-#endif
-							UnsafeUtility.ReleaseGCObject(handle);
+							Release();
 							return false;
 						}
 						
@@ -574,10 +581,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 						frameIndex++;
 					} while (samplesCopied < frameSize);
 
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-					AtomicSafetyHandle.Release(safety);
-#endif
-					UnsafeUtility.ReleaseGCObject(handle);
+					Release();
 				}
 
 				Util.UpdateVUMeterSingleChannel(ref _channelVisualisations, data, maxChannels, channelNo);
