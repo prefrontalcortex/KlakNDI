@@ -24,9 +24,11 @@ sealed class FormatConverter : IDisposable
 
     void ReleaseBuffers()
     {
+        _encoderOutput?.Release();
         _encoderOutput?.Dispose();
         _encoderOutput = null;
 
+        _decoderInput?.Release();
         _decoderInput?.Dispose();
         _decoderInput = null;
 
@@ -121,8 +123,7 @@ sealed class FormatConverter : IDisposable
 
     public RenderTexture LastDecoderOutput => _decoderOutput;
 
-    public RenderTexture
-      Decode(int width, int height, bool enableAlpha, IntPtr data)
+    public RenderTexture Decode(int width, int height, bool enableAlpha, IntPtr data)
     {
         var dataCount = Util.FrameDataSize(width, height, enableAlpha) / 4;
 
@@ -140,7 +141,7 @@ sealed class FormatConverter : IDisposable
 
         // Input buffer allocation
         if (_decoderInput == null)
-            _decoderInput = new ComputeBuffer(dataCount, 4);
+            _decoderInput = new ComputeBuffer(dataCount, 4, ComputeBufferType.Default, ComputeBufferMode.SubUpdates);
 
         // Output buffer allocation
         if (_decoderOutput == null)
@@ -155,16 +156,22 @@ sealed class FormatConverter : IDisposable
             _decoderOutput.Create();
         }
 
+        if (!_decoderInput.IsValid())
+        {
+            Debug.Log("Decoder input buffer is invalid");
+            return _decoderOutput;
+        }
+        
         // Input buffer update
         _decoderInput.SetData(data, dataCount, 4);
-
-        // Kenel select
+        // Kernel select
         var pass = (enableAlpha ? 2 : 0);
 
         // As far as we know, only Metal supports sRGB write to UAV, so we
         // use the linear-color kernels only on Metal
         if (!Util.InGammaMode && Util.UsingMetal) pass++;
-
+        
+        
         // Decoder compute dispatching
         var compute = _resources.decoderCompute;
         compute.SetBuffer(pass, "Source", _decoderInput);

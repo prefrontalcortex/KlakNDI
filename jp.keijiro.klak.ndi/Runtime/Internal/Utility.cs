@@ -147,7 +147,20 @@ static class ComputeBufferExtension
         NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref view, safety);
         #endif
 
-        buffer.SetData(view);
+        if (view.Length == 0)
+        {
+            Debug.Log("View.length == 0");
+            
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            AtomicSafetyHandle.Release(safety);
+#endif
+            return;
+        }
+        
+        var bufferArray = buffer.BeginWrite<byte>(0, view.Length);
+        NativeArray<byte>.Copy(view, bufferArray, view.Length);
+        buffer.EndWrite<byte>(view.Length);
+       // buffer.SetData(view);
 
         #if ENABLE_UNITY_COLLECTIONS_CHECKS
         AtomicSafetyHandle.Release(safety);
