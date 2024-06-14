@@ -48,6 +48,16 @@ public class Recv : SafeHandleZeroOrMinusOneIsInvalid
       (out VideoFrame video, out AudioFrame audio, out MetadataFrame metadata, uint timeout)
       => _Capture(this, out video, out audio, out metadata, timeout);
 
+    public FrameType CaptureVideoAndMeta
+        (out VideoFrame video, out MetadataFrame metadata, uint timeout)
+        => _CaptureVideo(this, out video, IntPtr.Zero, out metadata, timeout);
+
+    public bool CaptureAudio(out AudioFrame audio, uint timeout)
+    {
+        var t = _CaptureAudio(this, IntPtr.Zero, out audio, IntPtr.Zero, timeout);
+        return t == FrameType.Audio;
+    }
+    
     public void FreeVideoFrame(in VideoFrame frame)
       => _FreeVideo(this, frame);
 
@@ -94,6 +104,13 @@ public class Recv : SafeHandleZeroOrMinusOneIsInvalid
     static extern FrameType _Capture(Recv recv,
         out VideoFrame video, out AudioFrame audio, out MetadataFrame metadata, uint timeout);
 
+    [DllImport(Config.DllName, EntryPoint = "NDIlib_recv_capture_v2")]
+    static extern FrameType _CaptureAudio(Recv recv,
+        IntPtr p1, out AudioFrame audio, IntPtr p2, uint timeout);
+    
+    [DllImport(Config.DllName, EntryPoint = "NDIlib_recv_capture_v2")]
+    static extern FrameType _CaptureVideo(Recv recv, out VideoFrame video, IntPtr p1, out MetadataFrame metadata, uint timeout);
+    
     [DllImport(Config.DllName, EntryPoint = "NDIlib_recv_free_video_v2")]
     static extern void _FreeVideo(Recv recv, in VideoFrame data);
 
