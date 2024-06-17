@@ -24,6 +24,7 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
     private AutoProperty _audioSource;
     private AutoProperty _createVirtualSpeakers;
     private AutoProperty _receiveAudio;
+    private AutoProperty _bandwidth;
     
     #pragma warning restore
     private bool _foldOutChannelIncome = true;
@@ -91,6 +92,9 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
 
         EditorGUILayout.EndHorizontal();
 
+        // Bandwidth mode
+        EditorGUILayout.PropertyField(_bandwidth);
+        
         // Target Texture/Renderer
         EditorGUILayout.PropertyField(_targetTexture);
         EditorGUILayout.PropertyField(_targetRenderer);

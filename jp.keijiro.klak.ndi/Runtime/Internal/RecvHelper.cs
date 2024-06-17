@@ -13,7 +13,7 @@ static class RecvHelper
         return null;
     }
 
-    public static unsafe Interop.Recv TryCreateRecv(string sourceName)
+    public static unsafe Interop.Recv TryCreateRecv(string sourceName, Interop.Bandwidth bandwidth)
     {
         var source = FindSource(sourceName);
         if (source == null) return null;
@@ -21,7 +21,7 @@ static class RecvHelper
         var opt = new Interop.Recv.Settings
           { Source = (Interop.Source)source,
             ColorFormat = Interop.ColorFormat.Fastest,
-            Bandwidth = Interop.Bandwidth.Highest };
+            Bandwidth = bandwidth };
 
         return Interop.Recv.Create(opt);
     }
