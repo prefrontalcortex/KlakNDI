@@ -20,7 +20,15 @@ public sealed partial class NdiReceiver : MonoBehaviour, IAdmDataProvider
         _ndiName = _ndiNameRuntime = name;
         Restart();
     }
+    
+    [SerializeField] private Interop.Bandwidth _bandwidth = Interop.Bandwidth.Highest;
 
+    public Interop.Bandwidth bandwidth
+    {
+        get => _bandwidth;
+        set => _bandwidth = value; 
+    }
+    
     #endregion
 
     #region Target settings

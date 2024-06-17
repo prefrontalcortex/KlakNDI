@@ -26,10 +26,18 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	Interop.Recv _recv;
 	FormatConverter _converter;
 	MaterialPropertyBlock _override;
-
+	Interop.Bandwidth _lastBandwidth;
+	
     void PrepareReceiverObjects()
     {
-        if (_recv == null) _recv = RecvHelper.TryCreateRecv(ndiName);
+	    if (_lastBandwidth != _bandwidth)
+	    {
+		    _lastBandwidth = _bandwidth;
+		    _recv?.Dispose();
+		    _recv = null;
+	    }
+	    
+        if (_recv == null) _recv = RecvHelper.TryCreateRecv(ndiName, _bandwidth);
         if (_converter == null) _converter = new FormatConverter(_resources);
         if (_override == null) _override = new MaterialPropertyBlock();
     }
