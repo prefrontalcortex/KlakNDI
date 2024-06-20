@@ -134,18 +134,6 @@ namespace Klak.Ndi.Audio
                 Debug.LogError("AudioSourceListener requires an AudioSource component.");
                 enabled = false;
             }
-
-            _TmpSettings.position = transform.position;
-            _TmpSettings.spatialBlend = _audioSource.spatialBlend;
-            _TmpSettings.volume = _audioSource.volume;
-            _TmpSettings.forceToChannel = additionalSettings.forceToChannel ? additionalSettings.channel : -1;
-            
-            _audioSource.bypassListenerEffects = false;
-            _TmpSettings.minDistance = _audioSource.minDistance;
-            _TmpSettings.maxDistance = _audioSource.maxDistance;
-            _TmpSettings.rolloffMode = _audioSource.rolloffMode;
-            _TmpSettings.customRolloffCurve = _audioSource.GetCustomCurve(AudioSourceCurveType.CustomRolloff);
-            _TmpSettings.spatialBlendCurve =  _audioSource.GetCustomCurve(AudioSourceCurveType.SpatialBlend);
         }
 
         private void VirtualAudioStateChanged(bool active)
@@ -178,6 +166,19 @@ namespace Klak.Ndi.Audio
             // We need raw audio data without any spatialization
             _audioSource.spatialize = VirtualAudio.UseVirtualAudio;
             _audioSource.spatializePostEffects = VirtualAudio.UseVirtualAudio;
+            
+            _TmpSettings.position = transform.position;
+            _TmpSettings.spatialBlend = _audioSource.spatialBlend;
+            _TmpSettings.volume = _audioSource.volume;
+            _TmpSettings.forceToChannel = additionalSettings.forceToChannel ? additionalSettings.channel : -1;
+            
+            _audioSource.bypassListenerEffects = false;
+            _TmpSettings.minDistance = _audioSource.minDistance;
+            _TmpSettings.maxDistance = _audioSource.maxDistance;
+            _TmpSettings.rolloffMode = _audioSource.rolloffMode;
+            _TmpSettings.customRolloffCurve = _audioSource.GetCustomCurve(AudioSourceCurveType.CustomRolloff);
+            _TmpSettings.spatialBlendCurve =  _audioSource.GetCustomCurve(AudioSourceCurveType.SpatialBlend);
+            
             VirtualAudio.OnVirtualAudioStateChanged.AddListener(VirtualAudioStateChanged);
 
             if (!VirtualAudio.UseVirtualAudio)
