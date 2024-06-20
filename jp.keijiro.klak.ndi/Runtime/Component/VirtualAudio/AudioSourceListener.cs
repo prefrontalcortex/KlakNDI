@@ -59,8 +59,8 @@ namespace Klak.Ndi.Audio
                     var inputPtr = (float*)dataPtr;
                     var outputPtr = (float*)_audioSourceData.audioData.GetUnsafePtr();
                     
-                    VirtualAudio.BurstMethods.MixToMono(inputPtr, data.Length, outputPtr, channels);
-                    listenerWeights = _audioSourceData.lastListenerWeights;
+                    BurstMethods.MixToMono(inputPtr, data.Length, outputPtr, channels);
+                    listenerWeights = _audioSourceData.currentWeights;
                     _audioSourceData.settings = _TmpSettings;
                 }
 #if ENABLE_UNITY_COLLECTIONS_CHECKS

@@ -115,12 +115,11 @@ public sealed partial class NdiSender : MonoBehaviour
         VirtualAudio.ClearAllVirtualSpeakerListeners();
 
         float distance = virtualListenerDistance;
-        float dotAdjust = 0.5f;
-        VirtualAudio.AddListener( new Vector3(-distance, 0f, distance), dotAdjust, 1f);
-        VirtualAudio.AddListener( new Vector3(distance, 0f, distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(-distance, 0f, distance), 1f);
+        VirtualAudio.AddListener( new Vector3(distance, 0f, distance), 1f);
         
-        VirtualAudio.AddListener( new Vector3(-distance, 0f, -distance), dotAdjust, 1f);
-        VirtualAudio.AddListener( new Vector3(distance, 0f, -distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(-distance, 0f, -distance), 1f);
+        VirtualAudio.AddListener( new Vector3(distance, 0f, -distance), 1f);
         _useVirtualSpeakerListeners = true;
     }    
     
@@ -130,15 +129,14 @@ public sealed partial class NdiSender : MonoBehaviour
         VirtualAudio.ClearAllVirtualSpeakerListeners();
 
         float distance = virtualListenerDistance;
-        float dotAdjust = 0.5f;
-        VirtualAudio.AddListener( new Vector3(-distance, 0f, distance), dotAdjust, 1f);
-        VirtualAudio.AddListener( new Vector3(distance, 0f, distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(-distance, 0f, distance), 1f);
+        VirtualAudio.AddListener( new Vector3(distance, 0f, distance), 1f);
         
-        VirtualAudio.AddListener( new Vector3(0f, 0f, distance), dotAdjust, 1f);
-        VirtualAudio.AddListener( new Vector3(0f, 0f, 0f), dotAdjust, 0f);
+        VirtualAudio.AddListener( new Vector3(0f, 0f, distance), 1f);
+        VirtualAudio.AddListener( new Vector3(0f, 0f, 0f), 0f);
         
-        VirtualAudio.AddListener( new Vector3(-distance, 0f, -distance), dotAdjust, 1f);
-        VirtualAudio.AddListener( new Vector3(distance, 0f, -distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(-distance, 0f, -distance), 1f);
+        VirtualAudio.AddListener( new Vector3(distance, 0f, -distance), 1f);
         _useVirtualSpeakerListeners = true;
     }
 
@@ -148,18 +146,17 @@ public sealed partial class NdiSender : MonoBehaviour
         VirtualAudio.ClearAllVirtualSpeakerListeners();
 
         float distance = virtualListenerDistance;
-        float dotAdjust = 0.5f;
-        VirtualAudio.AddListener( new Vector3(-distance, 0f, distance), dotAdjust, 1f);
-        VirtualAudio.AddListener( new Vector3(distance, 0f, distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(-distance, 0f, distance), 1f);
+        VirtualAudio.AddListener( new Vector3(distance, 0f, distance), 1f);
         
-        VirtualAudio.AddListener( new Vector3(0f, 0f, distance), dotAdjust, 1f);
-        VirtualAudio.AddListener( new Vector3(0f, 0f, 0f), dotAdjust, 0f);
+        VirtualAudio.AddListener( new Vector3(0f, 0f, distance), 1f);
+        VirtualAudio.AddListener( new Vector3(0f, 0f, 0f), 0f);
 
-        VirtualAudio.AddListener( new Vector3(-distance, 0f, 0), dotAdjust, 1f);
-        VirtualAudio.AddListener( new Vector3(distance, 0f, 0), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(-distance, 0f, 0), 1f);
+        VirtualAudio.AddListener( new Vector3(distance, 0f, 0), 1f);
         
-        VirtualAudio.AddListener( new Vector3(-distance, 0f, -distance), dotAdjust, 1f);
-        VirtualAudio.AddListener( new Vector3(distance, 0f, -distance), dotAdjust, 1f);
+        VirtualAudio.AddListener( new Vector3(-distance, 0f, -distance), 1f);
+        VirtualAudio.AddListener( new Vector3(distance, 0f, -distance), 1f);
         _useVirtualSpeakerListeners = true;
     }
 
@@ -167,8 +164,6 @@ public sealed partial class NdiSender : MonoBehaviour
     {
         VirtualAudio.UseVirtualAudio = true;
         VirtualAudio.ClearAllVirtualSpeakerListeners();
-
-        float dotAdjust = 0.90f;
         
         for (int i = 0; i < 32; i++)
         {
@@ -176,7 +171,7 @@ public sealed partial class NdiSender : MonoBehaviour
             float angle = i * Mathf.PI * 2 / 32;
             float x = Mathf.Sin(angle) * virtualListenerDistance;
             float z = Mathf.Cos(angle) * virtualListenerDistance;
-            VirtualAudio.AddListener(new Vector3(x, 0f, z), dotAdjust, 1f);
+            VirtualAudio.AddListener(new Vector3(x, 0f, z), 1f);
         }
         _useVirtualSpeakerListeners = true;
     }
@@ -194,7 +189,7 @@ public sealed partial class NdiSender : MonoBehaviour
         var allSpeakers = customSpeakerConfig.GetAllSpeakers();
         for (int i = 0; i < allSpeakers.Length; i++)
         {
-            VirtualAudio.AddListener(allSpeakers[i].position, 0.5f, allSpeakers[i].volume);
+            VirtualAudio.AddListener(allSpeakers[i].position, allSpeakers[i].volume);
         }
         _useVirtualSpeakerListeners = true;
     }
@@ -211,7 +206,12 @@ public sealed partial class NdiSender : MonoBehaviour
             ResetState();
         }
     }
-    
+
+    private void LateUpdate()
+    {
+        VirtualAudio.UpdateAudioSourceToListenerWeights( _listenerPosition, useCameraPositionForVirtualAttenuation);
+    }
+
     public float[] GetChannelVisualisations()
     {
         lock (_channelVisualisationsLock)
@@ -254,8 +254,26 @@ public sealed partial class NdiSender : MonoBehaviour
                 
                 return;
             }
+
             lock (_channelVisualisationsLock)
-                    Util.UpdateVUMeter(ref _channelVisualisations, _objectBasedChannels);
+            {
+                if (_channelVisualisations == null || _channelVisualisations.Length != _objectBasedChannels.Count)
+                    _channelVisualisations = new float[_objectBasedChannels.Count];
+
+                unsafe
+                {
+                    for (int i = 0; i < _channelVisualisations.Length; i++)
+                    {
+                        if (_objectBasedChannels[i].IsCreated && _objectBasedChannels[i].Length > 0)
+                        {
+                            BurstMethods.GetVU((float*)_objectBasedChannels[i].GetUnsafePtr(), _objectBasedChannels[i].Length, out float vu);
+                            _channelVisualisations[i] = vu;
+                        }
+                        else
+                            _channelVisualisations[i] = 0;
+                    }
+                }
+            }
             
             var admData = new AdmData();
             admData.positions = _objectBasedPositions;
@@ -319,9 +337,13 @@ public sealed partial class NdiSender : MonoBehaviour
 
     private void SendCustomListenerData()
     {
-        var mixedAudio = VirtualAudio.GetMixedAudio(out var stream, out int samplesCount, _listenerPosition, useCameraPositionForVirtualAttenuation);
+        var mixedAudio = VirtualAudio.GetMixedAudio(out var stream, out int samplesCount, out var tmpVus);
         lock (_channelVisualisationsLock)
-            Util.UpdateVUMeter(ref _channelVisualisations, mixedAudio);
+        {
+            if (_channelVisualisations == null || _channelVisualisations.Length != tmpVus.Length)
+                _channelVisualisations = new float[tmpVus.Length];
+            Array.Copy(tmpVus, _channelVisualisations, tmpVus.Length);
+        }
         
         SendChannels(stream, samplesCount, mixedAudio.Count);
     }
@@ -333,7 +355,6 @@ public sealed partial class NdiSender : MonoBehaviour
             Marshal.FreeCoTaskMem(_metaDataPtr);
             _metaDataPtr = IntPtr.Zero;
         }
-
         
         var xml = _audioMode == AudioMode.ObjectBased ? 
             AudioMeta.GenerateObjectBasedConfigXmlMetaData(_objectBasedPositions, _objectBasedGains) 
@@ -355,7 +376,6 @@ public sealed partial class NdiSender : MonoBehaviour
             {
                 settingsChanged = true;
                 numSamples = tempSamples;
-                
                 //PluginEntry.SetNumSamples(_plugin, numSamples);
             }
 
@@ -393,7 +413,8 @@ public sealed partial class NdiSender : MonoBehaviour
 
                 if (_send != null)
                 {
-                    _send.SendAudio(frame);
+                    if (!_send.IsClosed && !_send.IsInvalid)
+                        _send.SendAudio(frame);
                 }
             }
 

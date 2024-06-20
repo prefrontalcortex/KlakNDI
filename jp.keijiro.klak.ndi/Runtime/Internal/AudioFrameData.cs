@@ -77,7 +77,7 @@ namespace Klak.Ndi
 								NativeArrayOptions.UninitializedMemory);
 						}
 
-						VirtualAudio.BurstMethods.ResampleAudioData((float*)audioDataPtr, (float*)tempSamplesPtr,
+						BurstMethods.ResampleAudioData((float*)audioDataPtr, (float*)tempSamplesPtr,
 							audio.NoSamples,audio.SampleRate, requiredSampleRate, totalSamples, audio.NoChannels);
 					}
 				}
