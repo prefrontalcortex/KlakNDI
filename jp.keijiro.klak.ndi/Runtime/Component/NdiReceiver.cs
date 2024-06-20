@@ -13,7 +13,6 @@ using UnityEngine;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Profiling;
-using IntPtr = System.IntPtr;
 
 namespace Klak.Ndi {
 
@@ -297,6 +296,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	#region Audio implementation
 
 	private readonly object					audioBufferLock = new object();
+	private readonly object					channelVisualisationLock = new object();
 	//
 	private const int						_MaxBufferSampleSize = 48000 / 5;
 	private const int						_MinBufferSampleSize = 48000 / 10;
@@ -425,7 +425,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	
 	public float[] GetChannelVisualisations()
 	{
-		lock (audioBufferLock)
+		lock (channelVisualisationLock)
 		{
 			return _channelVisualisations;
 		}
@@ -563,7 +563,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 						var channelDataPtr = (float*)audioFrameData.GetUnsafePtr();
 						samplesToCopy *= channelCountInData;
 
-						VirtualAudio.BurstMethods.PlanarToInterleaved(channelDataPtr, audioFrameSamplesReaded, destPtr, samplesCopied, channelCountInData, samplesToCopy );
+						BurstMethods.PlanarToInterleaved(channelDataPtr, audioFrameSamplesReaded, destPtr, samplesCopied, channelCountInData, samplesToCopy );
 
 						samplesCopied += samplesToCopy;
 						frameIndex++;
@@ -572,7 +572,22 @@ public sealed partial class NdiReceiver : MonoBehaviour
 					Release();
 				}
 
-				Util.UpdateVUMeter(ref _channelVisualisations, data, channelCountInData);
+				lock (channelVisualisationLock)
+				{
+					unsafe
+					{
+						if (_channelVisualisations == null || _channelVisualisations.Length != channelCountInData)
+							_channelVisualisations = new float[channelCountInData];
+						
+						var dataPtr = UnsafeUtility.PinGCArrayAndGetDataAddress(data, out var handleData);
+						var visPtr = UnsafeUtility.PinGCArrayAndGetDataAddress(_channelVisualisations, out var handleVis);
+						
+						BurstMethods.GetVUs((float*)dataPtr, data.Length, channelCountInData, (float*)visPtr);
+						
+						UnsafeUtility.ReleaseGCObject(handleData);
+						UnsafeUtility.ReleaseGCObject(handleVis);
+					}
+				}
 			}
 
 			return true;
@@ -659,10 +674,10 @@ public sealed partial class NdiReceiver : MonoBehaviour
 						var channelDataPtr = (float*)channelData.GetUnsafePtr();
 
 						if (dataContainsSpatialData)
-							VirtualAudio.BurstMethods.UpMixMonoWithDestination(channelDataPtr, audioFrameSamplesReaded,
+							BurstMethods.UpMixMonoWithDestination(channelDataPtr, audioFrameSamplesReaded,
 								destPtr, samplesCopied, channelCountInData, samplesToCopy);
 						else
-							VirtualAudio.BurstMethods.UpMixMono(channelDataPtr, audioFrameSamplesReaded, destPtr,
+							BurstMethods.UpMixMono(channelDataPtr, audioFrameSamplesReaded, destPtr,
 								samplesCopied, channelCountInData, samplesToCopy);
 
 						_currentAudioFrame.channelSamplesReaded[channelNo] += samplesToCopy;
@@ -674,7 +689,22 @@ public sealed partial class NdiReceiver : MonoBehaviour
 					Release();
 				}
 
-				Util.UpdateVUMeterSingleChannel(ref _channelVisualisations, data, maxChannels, channelNo);
+				lock (channelVisualisationLock)
+				{
+					unsafe
+					{
+						if (_channelVisualisations == null || _channelVisualisations.Length != maxChannels)
+							_channelVisualisations = new float[maxChannels];
+						
+						var dataPtr = UnsafeUtility.PinGCArrayAndGetDataAddress(data, out var handleData);
+						
+						BurstMethods.GetVU((float*)dataPtr, data.Length, out float vu);
+						
+						if (channelNo >= 0 && channelNo < maxChannels)
+							_channelVisualisations[channelNo] = vu;
+						UnsafeUtility.ReleaseGCObject(handleData);
+					}
+				}
 			}
 
 			return true;

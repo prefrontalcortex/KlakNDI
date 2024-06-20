@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Events;
+using Debug = UnityEngine.Debug;
 
 namespace Klak.Ndi.Audio
 {
@@ -25,14 +26,15 @@ namespace Klak.Ndi.Audio
             public int forceToChannel;
         }
         
-        public class AudioSourceData : IDisposable
+        internal class AudioSourceData : IDisposable
         {
             internal int id;
-            public NativeArray<float> audioData;
-
+            
+            internal NativeArray<float> audioData;
             public AudioSourceSettings settings;
-
-            public float[] lastListenerWeights;
+            
+            internal float[] currentWeights;
+            internal float[] smoothedWeights;
 
             public int objectBasedChannel = -1;
             
@@ -45,8 +47,26 @@ namespace Klak.Ndi.Audio
                     audioData = new NativeArray<float>(sampleSize, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
                 }
             }
-
-            public void ResetData()
+            
+            internal void UpdateSmoothingWeights()
+            {
+                if (currentWeights == null || currentWeights.Length != _virtualListeners.Count)
+                    return;
+            
+                if (smoothedWeights == null ||
+                    smoothedWeights.Length != currentWeights.Length)
+                {
+                    smoothedWeights = new float[currentWeights.Length];
+                    Array.Copy(currentWeights, smoothedWeights, currentWeights.Length);
+                }
+            
+                float dspDelta = (float)_dspBufferSize / (float)_sampleRate;
+            
+                for (int i = 0; i < currentWeights.Length; i++)
+                    smoothedWeights[i] = Mathf.Lerp(smoothedWeights[i], currentWeights[i], dspDelta * 4f);
+            }
+            
+            internal void ResetData()
             {
                 if (!audioData.IsCreated)
                     return;
@@ -62,15 +82,11 @@ namespace Klak.Ndi.Audio
             }
         }
 
-        private class ListenerData : IDisposable
+        internal class ListenerData : IDisposable
         {
-            public Vector3 position;
-            public float volume;
-            public float directionDotSubtract = 0.5f;
-
             public NativeArray<float> audioData;
-
-            public void ResetAudioData(int sampleSize)
+            
+            internal void ResetAudioData(int sampleSize)
             {
                 if (!audioData.IsCreated || audioData.Length < sampleSize)
                 {
@@ -84,112 +100,46 @@ namespace Klak.Ndi.Audio
                     UnsafeUtility.MemClear(audioData.GetUnsafePtr(), sampleSize * sizeof(float));
                 }
             }
-
+            
             public void Dispose()
             {
                 audioData.Dispose();
             }
         }
-
-        [BurstCompile]
-        internal static class BurstMethods
+        
+        internal class VirtualListener 
         {
-            [BurstCompile]
-            public static unsafe void MixToMono(float* rawAudioData, int rawLength, float* finalAudioData, int channels)
-            {
-                int sampleIndex = 0;
-                for (int i = 0; i < rawLength; i += channels)
-                {
-                    // Mix all channels into one
-                
-                    float v = 0;
-                    int nonNullChannels = 0;
-                    for (int c = 0; c < channels; c++)
-                    {
-                        v += rawAudioData[i + c];
-                        if (rawAudioData[i + c] != 0)
-                            nonNullChannels++;
-                    }
+            public Vector3 position;
+            public float volume;
 
-                    if (nonNullChannels == 0)
-                        v = 0f;
-                    else
-                        v /= nonNullChannels;
-                    
-                    finalAudioData[sampleIndex] = v;
-                
-                    sampleIndex++;
-                }
-            }
-
-            [BurstCompile]
-            public static unsafe void UpMixMono(float* monoSource, int sourceStartIndex, float* destination, int destOffset, int destinationChannelCo,
-                int length)
-            {
-                for (int i = 0; i < length; i++)
-                    for (int c = 0; c < destinationChannelCo; c++)
-                        destination[i * destinationChannelCo + c] = monoSource[i + sourceStartIndex];
-            }
-            
-            [BurstCompile]
-            public static unsafe void UpMixMonoWithDestination(float* monoSource, int sourceStartIndex, float* destination, int destOffset, int destinationChannelCo,
-                int length)
-            {
-                for (int i = 0; i < length; i++)
-                    for (int c = 0; c < destinationChannelCo; c++)
-                        destination[i * destinationChannelCo + c] = monoSource[i + sourceStartIndex] * math.abs(destination[i * destinationChannelCo + c]);
-            }
-
-            [BurstCompile]
-            public static unsafe void ResampleAudioData(float* sourceData, float* destData, int sourceSampleCount, int sourceSampleRate,
-                int destSampleRate, int destSampleCount, int channelCount)
-            {
-                float ratio = (float) sourceSampleRate / destSampleRate;
-                float step = 1.0f / ratio;
-                float position = 0;
-                for (int i = 0; i < sourceSampleCount; i++)
-                {
-                    for (int c = 0; c < channelCount; c++)
-                    {
-                        int destIndex = i * channelCount + c;
-                        if (destIndex >= 0 && destIndex < destSampleCount)
-                            destData[destIndex] = sourceData[(int) position * channelCount + c];
-                    }
-
-                    position += step;
-                }
-            }
-            
-            [BurstCompile]
-            public static unsafe void PlanarToInterleaved(float* planarData, int planarOffset, float* destData, int destOffset, int channels, int length)
-            {
-                for (int i = 0; i < length; i++)
-                    for (int c = 0; c < channels; c++)
-                        destData[destOffset + (i * channels + c)] = planarData[planarOffset + i + c];
-            }
-            
-            [BurstCompile]
-            internal static float LogAttenuation(float distance, float minDistance, float maxDistance)
-            {
-                float ratio = distance / minDistance;
-                return distance <= minDistance ? 1 : (1.0f / (1.0f + 2f * math.log(ratio)));
-            }
-
-            [BurstCompile]
-            internal static float MixSample(float sample1, float sample2)
-            {
-                float s1 = math.sign(sample1);
-                return sample1 + sample2 + (((sample1 * sample2) * s1 * -1f) * ((s1 + math.sign(sample2) / 2f * s1)));
-            }
-
-            [BurstCompile]
-            internal static unsafe void MixArrays(float* destination, float* source, int length, float volume)
-            {
-                for (int i = 0; i < length; i++)
-                    destination[i] = MixSample(destination[i], source[i] * volume);
-            }   
+            public SphericalCoordinate sphericalCoordinate;
         }
 
+     
+        [BurstCompile]
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct SphericalCoordinate
+        {
+            public float azimuth;
+            public float elevation;
+            public float distance;
+
+            /// <summary>
+            /// Returns the relative angle position based on the other azimuth
+            /// </summary>
+            /// <param name="otherAzimuth"></param>
+            /// <returns></returns>
+            public float AzimuthAngleDifferenceFrom(float otherAzimuth)
+            {
+                float diff = azimuth - otherAzimuth;
+                if (diff < -180)
+                    diff += 360;
+                if (diff > 180)
+                    diff -= 360;
+                return diff;
+            }
+        }
+        
         internal static bool UseVirtualAudio
         {
             get => _useVirtualAudio;
@@ -200,29 +150,37 @@ namespace Klak.Ndi.Audio
             }
         }
 
-        private static bool _useVirtualAudio = false; 
+        internal static bool PlayCenteredAudioSourceOnAllListeners
+        {
+            get => _centeredAudioSourceOnAllListeners;
+            set => _centeredAudioSourceOnAllListeners = value;
+        }
+        
+        private static bool _useVirtualAudio = false;
+        private static bool _virtualListenersChanged = false;
+        
         public static readonly UnityEvent<bool> OnVirtualAudioStateChanged = new UnityEvent<bool>();
         
         internal static bool objectBasedAudio = false;
         private static int _audioSourceNextId = 0;
         private static bool _testMode = false;
         private static int _currentTestChannel = 0;
+        private static bool _allListenersAreOnSameHeight = false;
         
         private static readonly Dictionary<int, AudioSourceData> _audioSourcesData = new Dictionary<int, AudioSourceData>();
+        private static readonly List<VirtualListener> _virtualListeners = new List<VirtualListener>();
         private static readonly List<ListenerData> _listenerDatas = new List<ListenerData>();
 
-        private static NativeList<float> _attenuationWeights;
-        private static NativeList<float> _spatialBlends;
-        private static NativeList<float> _speakerDotProducts;
-        private static NativeList<float> _weights;
-        private static NativeList<float> _distances;
-
-        private static readonly object _speakerLockObject = new object();
+        private static readonly object _listenerLockObject = new object();
         private static readonly object _audioSourceLockObject = new object();
+        private static readonly object _listenerDataLockObject = new object();
+        
         private static NativeArray<float> _audioSendStream;
+        
         private static NativeArray<float> _testAudioData;
         private static readonly object _testAudioLockObj = new object();
         private static double _testAudioDspStartTime = -1;
+        private static bool _centeredAudioSourceOnAllListeners = true;
         
         private static int _dspBufferSize;
         private static int _sampleRate;
@@ -234,12 +192,6 @@ namespace Klak.Ndi.Audio
             
             DisposeAllAudioSourceData();
             ClearAllVirtualSpeakerListeners();
-            
-            _attenuationWeights = new NativeList<float>(50, AllocatorManager.Persistent);
-            _spatialBlends = new NativeList<float>(50, AllocatorManager.Persistent);
-            _speakerDotProducts = new NativeList<float>(50, AllocatorManager.Persistent);
-            _weights = new NativeList<float>(50, AllocatorManager.Persistent);
-            _distances = new NativeList<float>(50, AllocatorManager.Persistent);
             
             AudioSettings.GetDSPBufferSize(out _dspBufferSize, out int _);
             _sampleRate = AudioSettings.outputSampleRate;
@@ -265,53 +217,63 @@ namespace Klak.Ndi.Audio
 
         private static void OnApplicationQuit()
         {
-            _attenuationWeights.Dispose();
-            _spatialBlends.Dispose();
-            _speakerDotProducts.Dispose();
-            _weights.Dispose();
-            _distances.Dispose();
             if (_audioSendStream.IsCreated)
                 _audioSendStream.Dispose();
         }
 
         internal static void ClearAllVirtualSpeakerListeners()
         {
-            lock (_speakerLockObject)
+            lock (_listenerDataLockObject)
             {
                 foreach (var l in _listenerDatas)
                     l.Dispose();
                 _listenerDatas.Clear();
             }
+                
+            lock (_listenerLockObject)
+            {
+                
+                _virtualListeners.Clear();
+                _virtualListenersChanged = true;
+            }
         }
         
         public static Vector3[] GetListenersPositions()
         {
-            lock (_speakerLockObject)
+            lock (_listenerLockObject)
             {
-                return _listenerDatas.Select( l => l.position).ToArray();
+                return _virtualListeners.Select( l => l.position).ToArray();
             }
         }
         
         public static float[] GetListenersVolume()
         {
-            lock (_speakerLockObject)
+            lock (_listenerLockObject)
             {
-                return _listenerDatas.Select( l => l.volume).ToArray();
+                return _virtualListeners.Select( l => l.volume).ToArray();
             }
         }
 
-        internal static void AddListener(Vector3 relativePosition, float dotDirectionAdjust = 0.5f, float volume = 1f)
+        internal static void AddListener(Vector3 relativePosition, float volume = 1f)
         {
-            var newData = new ListenerData
+            var newData = new VirtualListener
             {
                 position = relativePosition,
                 volume = volume,
-                directionDotSubtract = dotDirectionAdjust,
             };
 
-            lock (_speakerLockObject)
+            lock (_listenerLockObject)
             {
-                _listenerDatas.Add(newData);
+                _virtualListeners.Add(newData);
+                _virtualListenersChanged = true;
+            }
+
+            lock (_listenerDataLockObject)
+            {
+                _listenerDatas.Add(new ListenerData
+                {
+                    audioData = new NativeArray<float>(_dspBufferSize, Allocator.Persistent, NativeArrayOptions.UninitializedMemory)
+                });
             }
         }
 
@@ -349,24 +311,23 @@ namespace Klak.Ndi.Audio
             }
         }
         
-        private static float GetCameraAvgDistance(Vector3 cameraPosition)
+        private static float GetAvgListenerDistanceFromCamera(Vector3 cameraPosition)
         {
             float distanceFromCameraAvg = 0;
-            foreach (var speaker in _listenerDatas)
+            foreach (var listener in _virtualListeners)
             {
-                float d = Vector3.Distance(cameraPosition + speaker.position, cameraPosition);
-                _distances.Add(d);
+                float d = Vector3.Distance(cameraPosition + listener.position, cameraPosition);
                 distanceFromCameraAvg += d;
             }
 
-            distanceFromCameraAvg /= _listenerDatas.Count;
+            distanceFromCameraAvg /= _virtualListeners.Count;
             return distanceFromCameraAvg;
         }
         
         internal static bool GetObjectBasedAudio(out NativeArray<float> stream,  out int samples, List<NativeArray<float>> channels, List<Vector3> positions, List<float> gains, int maxObjectBasedChannels)
         {
             lock (_audioSourcesData)
-            lock (_speakerLockObject)
+            lock (_listenerLockObject)
             {
                 samples = 0;
 
@@ -517,8 +478,113 @@ namespace Klak.Ndi.Audio
             for (int i = 0; i < samples; i++)
             {
                 // Create a sinus wave
-                float v = 2f * Mathf.Sin(Mathf.PI * 2f * ((float)(AudioSettings.dspTime-offset) + (float)i / (float)(_sampleRate)));
+                float v = 2f * Mathf.Sin(((float)(AudioSettings.dspTime-offset) + (float)i / (float)(_sampleRate)));
                 destination[startIndex + i] = v;
+            }
+        }
+
+        private static float GetSpatialBlend(AudioSourceSettings audioSourceSettings, float audioSourceAttenuation)
+        {
+            float spatialBlend = audioSourceSettings.spatialBlend *
+                                 audioSourceSettings.spatialBlendCurve.Evaluate(
+                                     Mathf.Clamp01(Mathf.Lerp(audioSourceSettings.minDistance,
+                                         audioSourceSettings.maxDistance, audioSourceAttenuation)));
+            return spatialBlend;
+        }
+
+        private static void ApplySpatialBlendToWeights(float[] weights, float spatialBlend)
+        {
+            for (int i = 0; i < weights.Length; i++)
+            {
+                float weight = weights[i];
+                float spatial = Mathf.Lerp(weight, 1f, 1f - spatialBlend);
+                weights[i] = spatial;
+            }
+        }
+
+        private static void UpdateVirtualListeners()
+        {
+            if (!_virtualListenersChanged)
+                return;
+
+            lock (_listenerLockObject)
+            {
+                _virtualListenersChanged = false;
+
+                if (_virtualListeners.Count == 0)
+                    return;
+
+                float height = _virtualListeners[0].position.y;
+                _allListenersAreOnSameHeight = true;
+
+                unsafe
+                {
+                    for (int i = 0; i < _virtualListeners.Count(); i++)
+                    {
+                        BurstMethods.GetSphericalCoordinates(out _virtualListeners[i].sphericalCoordinate, _virtualListeners[i].position);
+
+                        if (Math.Abs(height - _virtualListeners[i].position.y) > 0.01f)
+                            _allListenersAreOnSameHeight = false;
+                    }
+                }
+            }
+        }
+
+        internal static void UpdateAudioSourceToListenerWeights(Vector3 cameraPosition, bool useCameraPosForAttenuation = false)
+        {
+            UpdateVirtualListeners();
+            float distanceFromCameraAvg = GetAvgListenerDistanceFromCamera(cameraPosition);
+            
+            lock (_audioSourcesData)
+            lock (_listenerLockObject)
+            {
+                foreach (var audioSourceKVP in _audioSourcesData)
+                {
+                    var audioSource = audioSourceKVP.Value;
+                    var audioSourceSettings = audioSource.settings;
+                    
+                    if (audioSource.currentWeights == null || audioSource.currentWeights.Length != _virtualListeners.Count)
+                        audioSource.currentWeights = new float[_virtualListeners.Count];
+                    
+                    if (!audioSource.audioData.IsCreated)
+                    {
+                        Array.Fill(audioSource.currentWeights, 0f);        
+                        continue;
+                    }
+                    
+                    float cameraDistanceToAudioSource = Vector3.Distance(audioSourceSettings.position, cameraPosition);
+
+                    Array.Fill(audioSource.currentWeights, 0f);
+                    
+                    var usedDistance = useCameraPosForAttenuation
+                        ? cameraDistanceToAudioSource
+                        : Mathf.Max(0, cameraDistanceToAudioSource - distanceFromCameraAvg);
+                    var audioSourceAttenuation = GetDistanceAttenuation(usedDistance, audioSourceSettings);
+                    var spatialBlend = GetSpatialBlend(audioSourceSettings, audioSourceAttenuation);
+                    var blendToCenter = _centeredAudioSourceOnAllListeners ? 
+                        Mathf.Pow(Mathf.Clamp01(Mathf.InverseLerp( distanceFromCameraAvg, 1f, cameraDistanceToAudioSource)), 2f)
+                        : 0;
+
+                    void ApplyDistanceAttenuationAndSourceVolumeToWeights()
+                    {
+                        var volume = audioSourceAttenuation * audioSourceSettings.volume;
+                        for (int i = 0; i < audioSource.currentWeights.Length; i++)
+                            audioSource.currentWeights[i] *= volume;
+                    }
+                    
+                    if (_allListenersAreOnSameHeight)
+                    {
+                        // Using simple azimuth based panning
+                        CalculateWeightsBasedOnSimplePlanarAzimuthPanning(audioSource.currentWeights, audioSourceSettings, blendToCenter);
+                    }
+                    else
+                    {
+                        // TODO: height panning
+                    } 
+     
+                    ApplyDistanceAttenuationAndSourceVolumeToWeights();
+                    ApplySpatialBlendToWeights(audioSource.currentWeights, spatialBlend);
+                }
             }
         }
         
@@ -530,31 +596,23 @@ namespace Klak.Ndi.Audio
         /// <param name="cameraPosition">Current camera position</param>
         /// <param name="useCameraPosForAttenuation">When false, the volume attenuations are based on speaker to audiosource distance</param>
         /// <returns></returns>
-        internal static List<NativeArray<float>> GetMixedAudio(out NativeArray<float> stream, out int samples, Vector3 cameraPosition,
-            bool useCameraPosForAttenuation = false)
+        internal static List<NativeArray<float>> GetMixedAudio(out NativeArray<float> stream, out int samples, out float[] vus)
         {
             samples = 0;
             stream = _audioSendStream;
-            List<NativeArray<float>> result = new List<NativeArray<float>>();
-            if (!_attenuationWeights.IsCreated)
-                return result;
-            
-            _attenuationWeights.Clear();
-            _spatialBlends.Clear();
-            _speakerDotProducts.Clear();
-            _distances.Clear();
-            
+
             lock (_audioSourcesData)
-            lock (_speakerLockObject)
+            lock (_listenerDataLockObject)
             {
+                List<NativeArray<float>> result = new List<NativeArray<float>>(_listenerDatas.Count);
                 samples = 0;
 
-                if (_listenerDatas.Count == 0 || _audioSourcesData.Count == 0)
+                if (_virtualListeners.Count == 0 || _audioSourcesData.Count == 0)
+                {
+                    vus = new float[_listenerDatas.Count];
                     return result;
-
-
-                float distanceFromCameraAvg = GetCameraAvgDistance(cameraPosition);
-
+                }
+                
                 foreach (var audioSource in _audioSourcesData)
                 {
                     if (samples < audioSource.Value.audioData.Length)
@@ -573,30 +631,39 @@ namespace Klak.Ndi.Audio
                 
                 if (_testMode)
                 {
-                    for (int iSpeaker = 0; iSpeaker < _listenerDatas.Count; iSpeaker++)
+                    if (!_testAudioData.IsCreated || _testAudioData.Length != samples)
                     {
-                        var speaker = _listenerDatas[iSpeaker];
-                        speaker.ResetAudioData(samples);
-                        result.Add(speaker.audioData);
-                        if (iSpeaker == _currentTestChannel)
+                        if (_testAudioData.IsCreated)
+                            _testAudioData.Dispose();
+                        _testAudioData = new NativeArray<float>(samples, Allocator.Persistent);
+                    }
+                    GenerateTestSound(_testAudioData, 0, _testAudioData.Length);
+
+                    for (int iListener = 0; iListener < _listenerDatas.Count; iListener++)
+                    {
+                        var listener = _listenerDatas[iListener];
+                        listener.ResetAudioData(samples);
+                        result.Add(listener.audioData);
+                        if (iListener == _currentTestChannel)
                         {
-                            GenerateTestSound(speaker.audioData, 0, speaker.audioData.Length);
+                            //BurstMethods.MixArrays();
+                            NativeArray<float>.Copy(_testAudioData, 0, listener.audioData, 0, samples);
                         }
-                        NativeArray<float>.Copy(speaker.audioData, 0, _audioSendStream, iSpeaker * samples, samples);
+                        NativeArray<float>.Copy(listener.audioData, 0, _audioSendStream, iListener * samples, samples);
                     }
                     
+                    vus = new float[_listenerDatas.Count];
+                    vus[_currentTestChannel] = 1f;
                     return result;
                 }
                 
                 for (int iSpeaker = 0; iSpeaker < _listenerDatas.Count; iSpeaker++)
-                {
-                    var speaker = _listenerDatas[iSpeaker];
-                    speaker.ResetAudioData(samples);
-                }
+                    _listenerDatas[iSpeaker].ResetAudioData(samples);
                 
-                foreach (var audioSource in _audioSourcesData)
+                for (int i = 0; i < _audioSourcesData.Count; i++)
                 {
-                    int forceToChannel = audioSource.Value.settings.forceToChannel;
+                    var audioSource = _audioSourcesData.ElementAt(i).Value;
+                    int forceToChannel =  audioSource.settings.forceToChannel;
 
                     if (forceToChannel != -1)
                     {
@@ -606,113 +673,158 @@ namespace Klak.Ndi.Audio
                         }
                         else
                         {
-                            var speaker = _listenerDatas[forceToChannel];
+                            var listener = _listenerDatas[forceToChannel];
                             unsafe
                             {
-                                var inputPtr = (float*)speaker.audioData.GetUnsafeReadOnlyPtr();
-                                var outputPtr = (float*)audioSource.Value.audioData.GetUnsafePtr();
+                                var inputPtr = (float*)listener.audioData.GetUnsafeReadOnlyPtr();
+                                var outputPtr = (float*)audioSource.audioData.GetUnsafePtr();
                             
-                                BurstMethods.MixArrays(inputPtr, outputPtr, speaker.audioData.Length,  audioSource.Value.settings.volume);
+                                BurstMethods.MixArrays(inputPtr, outputPtr, listener.audioData.Length,  audioSource.settings.volume);
                             }
                             continue;
                         }
                     }
-
-                    Vector3 centerToSourceDir = (audioSource.Value.settings.position - cameraPosition).normalized;
-
-                    float distanceFromCamera = Vector3.Distance(audioSource.Value.settings.position, cameraPosition);
-                    float centerWeight = 1f - Mathf.InverseLerp(0, distanceFromCameraAvg, distanceFromCamera);
-                    centerWeight = Mathf.Pow(centerWeight, 2f);
-
-                    _speakerDotProducts.Clear();
-                    _attenuationWeights.Clear();
-                    _spatialBlends.Clear();
-                    _weights.Clear();
-
-                    var audioSourceSettings = audioSource.Value.settings;
-
-                    foreach (var speaker in _listenerDatas)
-                    {
-                        Vector3 centerToSpeakerDir = speaker.position.normalized;
-                        // Dot product for speaker direction weighting
-                        float dot = Vector3.Dot(centerToSourceDir, centerToSpeakerDir);
-                        _speakerDotProducts.Add(Mathf.Clamp01(dot - speaker.directionDotSubtract + centerWeight));
-
-                        float distanceAS_SPK =
-                            Vector3.Distance(
-                                useCameraPosForAttenuation ? cameraPosition : (cameraPosition + speaker.position),
-                                audioSourceSettings.position);
-
-                        float distanceRollOffWeight = GetDistanceAttenuation(distanceAS_SPK, audioSourceSettings);
-
-                        float spatialBlend = audioSourceSettings.spatialBlend *
-                                             audioSourceSettings.spatialBlendCurve.Evaluate(
-                                                 Mathf.Clamp01(Mathf.Lerp(audioSourceSettings.minDistance,
-                                                     audioSourceSettings.maxDistance, distanceAS_SPK)));
-
-                        _spatialBlends.Add(spatialBlend);
-                        _attenuationWeights.Add((distanceRollOffWeight));
-                    }
-
                     
-                    if (distanceFromCamera < 4f)
-                    {
-                        var blendCenter = Mathf.InverseLerp( 2f, 4f, distanceFromCamera);
-                        
-                        for (int i = 0; i < _speakerDotProducts.Length; i++)
-                        {
-                            _speakerDotProducts[i] = Mathf.Lerp( _listenerDatas[i].volume, _speakerDotProducts[i], blendCenter);
-                        }
-                    }
-                    
-                    float dotSum = 0f;
-                    for (int i = 0; i < _speakerDotProducts.Length; i++)
-                        dotSum += _speakerDotProducts[i];
-                    
-                    for (int i = 0; i < _speakerDotProducts.Length; i++)
-                        _speakerDotProducts[i] = Mathf.Clamp01(_speakerDotProducts[i] / dotSum);
-
-                    for (int i = 0; i < _attenuationWeights.Length; i++)
-                    {
-                        float volume = _attenuationWeights[i] * audioSourceSettings.volume;
-                        float dotWeight = volume * _speakerDotProducts[i];
-                        float weight = Mathf.Clamp01(dotWeight);
-                        float spatial = Mathf.Lerp(weight, 1f, 1f - _spatialBlends[i]);
-                        _weights.Add(spatial * _listenerDatas[i].volume * 1f);
-                    }
-                    
-                    if (audioSource.Value.lastListenerWeights == null || audioSource.Value.lastListenerWeights.Length != _weights.Length)
-                        audioSource.Value.lastListenerWeights = new float[_weights.Length];
-                    NativeArray<float>.Copy(_weights, audioSource.Value.lastListenerWeights);
-                    
-                    
-                    for (int iSpeaker = 0; iSpeaker < _listenerDatas.Count; iSpeaker++)
-                    {
-                        var speaker = _listenerDatas[iSpeaker];
-
-                        if (speaker.audioData.Length != audioSource.Value.audioData.Length)
-                        {
-                            // This should never happen!
-                            Debug.LogError("Channel data length does not match audio source data length!");
-                        }
-
-                        unsafe
-                        {
-                            var listenerPtr = (float*)speaker.audioData.GetUnsafeReadOnlyPtr();
-                            var audioSourcePtr = (float*)audioSource.Value.audioData.GetUnsafePtr();
-                            
-                            BurstMethods.MixArrays(listenerPtr, audioSourcePtr, speaker.audioData.Length,  _weights[iSpeaker]);
-                        }
-                        NativeArray<float>.Copy(speaker.audioData, 0, _audioSendStream, iSpeaker * samples, samples);
-                    }
+                    audioSource.UpdateSmoothingWeights();
+                    MixAudioSourceToListeners(audioSource, samples);
                 }
 
-                result = _listenerDatas.Select(s => s.audioData).ToList();
+                CopyListenerDataToSendStream();
+                vus = new float[_listenerDatas.Count];
+                unsafe
+                {
+                    for (int i = 0; i < _listenerDatas.Count; i++)
+                    {
+                        var inputPtr = (float*)_listenerDatas[i].audioData.GetUnsafeReadOnlyPtr();
+                        BurstMethods.GetVU(inputPtr, _listenerDatas[i].audioData.Length, out var vu);
+                        vus[i] = vu;
+                        
+                        result.Add(_listenerDatas[i].audioData);
+                    }
+                }
+                
+                return result;
             }
-
-            return result;
         }
         
+        private static void MixAudioSourceToListeners(AudioSourceData audioSource, int samples)
+        {
+            if ( audioSource.currentWeights == null || audioSource.audioData.Length == 0 || audioSource.currentWeights.Length != _listenerDatas.Count)
+                return;
+
+            for (int iListener = 0; iListener < _listenerDatas.Count; iListener++)
+            {
+                var listener = _listenerDatas[iListener];
+
+                if (listener.audioData.Length != audioSource.audioData.Length)
+                    // This should never happen!
+                    Debug.LogError("Channel data length does not match audio source data length!");
+                
+                unsafe
+                {
+                    var listenerPtr = (float*)listener.audioData.GetUnsafeReadOnlyPtr();
+                    var audioSourcePtr = (float*)audioSource.audioData.GetUnsafePtr();
+                            
+                    BurstMethods.MixArrays(listenerPtr, audioSourcePtr, listener.audioData.Length,  audioSource.smoothedWeights[iListener]);
+                }
+            }
+        }
+
+        private static void CopyListenerDataToSendStream()
+        {
+            for (int iListener = 0; iListener < _listenerDatas.Count; iListener++)
+            {
+                var listData = _listenerDatas[iListener];
+                NativeArray<float>.Copy(listData.audioData, 0, _audioSendStream, iListener * listData.audioData.Length, listData.audioData.Length);
+            }
+        }
+
+        private static void CalculateWeightsBasedOnSimplePlanarAzimuthPanning(float[] weights, AudioSourceSettings audioSourceSettings, float centerBlend)
+        {
+            BurstMethods.GetSphericalCoordinates(out var spherical, audioSourceSettings.position);
+            // Find the left and right listeners from the audioSource by the angle 
+
+            FindLeftAndRightListenerBasedOnAzimuth(spherical,
+                out var leftAngle, out var leftListener,
+                out var rightAngle, out var rightListener,
+                out var angleBetweenLeftAndRight);
+
+            float sum = 0;
+            float activeListeners = 0f;
+            for (int i = 0; i < _virtualListeners.Count; i++)
+                if (_virtualListeners[i].volume > 0f)
+                    activeListeners++;
+            
+            for (int i = 0; i < _virtualListeners.Count; i++)
+            {
+                float w = 0;
+                if (_virtualListeners[i] == leftListener)
+                {
+                    w = 1f-Mathf.InverseLerp(0, angleBetweenLeftAndRight, Mathf.Abs(leftAngle));
+                }
+                else if (_virtualListeners[i] == rightListener)
+                {
+                    w = 1f-Mathf.InverseLerp(0, angleBetweenLeftAndRight, Mathf.Abs(rightAngle));
+                }
+                
+                w = Mathf.Lerp(w, 1f / activeListeners, centerBlend);
+                
+                if (w > 0f)
+                    sum += (w * w);
+                weights[i] = w;
+            }
+
+            sum = Mathf.Sqrt(sum);
+            float a = Mathf.Pow(10f, -6f / 20f) * 2f;
+            float k = a * sum;
+            for (int i = 0; i < weights.Length; i++)
+            {
+                if (weights[i] == 0f)
+                    continue;
+                float amp = (weights[i] * a) / k;
+                weights[i] = amp;
+            }
+            
+        }
+
+        private static void FindLeftAndRightListenerBasedOnAzimuth(SphericalCoordinate source, out float leftAngle,
+            out VirtualListener leftListener, out float rightAngle, out VirtualListener rightListener, out float angleBetweenLeftAndRight)
+        {
+            leftAngle = 0;
+            rightAngle = 0;
+            leftListener = null;
+            rightListener = null;
+            angleBetweenLeftAndRight = 0;
+            for (int i = 0; i < _virtualListeners.Count; i++)
+            {
+                var currentListener = _virtualListeners[i];
+                if (_virtualListeners[i].volume == 0)
+                    continue;
+                            
+                var listenerSpherical = currentListener.sphericalCoordinate;
+                var listenerAnglePosFromSource =
+                    listenerSpherical.AzimuthAngleDifferenceFrom(source.azimuth);
+
+                if (listenerAnglePosFromSource < 0 && (listenerAnglePosFromSource > leftAngle || leftListener == null))
+                {
+                    leftListener = currentListener;
+                    leftAngle = listenerAnglePosFromSource;
+                }
+
+                if (listenerAnglePosFromSource > 0 && (listenerAnglePosFromSource < rightAngle || rightListener == null))
+                {
+                    rightListener = currentListener;
+                    rightAngle = listenerAnglePosFromSource;
+                }
+            }
+
+
+            if (leftListener != null && rightListener != null)
+            {
+                angleBetweenLeftAndRight = Mathf.Abs(leftListener.sphericalCoordinate.AzimuthAngleDifferenceFrom(rightListener.sphericalCoordinate.azimuth));
+            }
+        }
+
         #region Helpers
         private static float GetDistanceAttenuation(float distance, AudioSourceSettings audioSettings)
         {
