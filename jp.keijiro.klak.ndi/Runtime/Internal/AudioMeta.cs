@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Xml;
 using JetBrains.Annotations;
 using Klak.Ndi.Audio;
@@ -29,16 +30,16 @@ namespace Klak.Ndi
             {
                 var speakerNode = speakerNodes[i];
                 if (speakerNode?.Attributes == null) continue;
-                var x = float.Parse(speakerNode.Attributes["x"].Value);
-                var y = float.Parse(speakerNode.Attributes["y"].Value);
-                var z = float.Parse(speakerNode.Attributes["z"].Value);
+                var x = float.Parse(speakerNode.Attributes["x"].Value, CultureInfo.InvariantCulture);
+                var y = float.Parse(speakerNode.Attributes["y"].Value, CultureInfo.InvariantCulture);
+                var z = float.Parse(speakerNode.Attributes["z"].Value, CultureInfo.InvariantCulture);
                 if (speakerNode.Attributes["objectbased"] != null)
                 {
                     isObjectBased = true;
                 }
                 if (speakerNode.Attributes["gain"] != null)
                 {
-                    gains[i] = float.Parse(speakerNode.Attributes["gain"].Value);
+                    gains[i] = float.Parse(speakerNode.Attributes["gain"].Value, CultureInfo.InvariantCulture);
                 }
                 speakers[i] = new Vector3(x, y, z);
             }
@@ -58,10 +59,10 @@ namespace Klak.Ndi
                 //var relativePosition = speaker.transform.position - listenerPosition;
                 //var relativePosition = speaker.position - listenerPosition;
                 speakerNode.SetAttribute("objectbased", "true");
-                speakerNode.SetAttribute("x", pos.x.ToString());
-                speakerNode.SetAttribute("y", pos.y.ToString());
-                speakerNode.SetAttribute("z", pos.z.ToString());
-                speakerNode.SetAttribute("gain", gains[index].ToString());
+                speakerNode.SetAttribute("x", pos.x.ToString(CultureInfo.InvariantCulture));
+                speakerNode.SetAttribute("y", pos.y.ToString(CultureInfo.InvariantCulture));
+                speakerNode.SetAttribute("z", pos.z.ToString(CultureInfo.InvariantCulture));
+                speakerNode.SetAttribute("gain", gains[index].ToString(CultureInfo.InvariantCulture));
                 root.AppendChild(speakerNode);
                 index++;
             }
@@ -92,9 +93,9 @@ namespace Klak.Ndi
                 var speakerNode = xmlMeta.CreateElement("Speaker");
                 //var relativePosition = speaker.transform.position - listenerPosition;
                 //var relativePosition = speaker.position - listenerPosition;
-                speakerNode.SetAttribute("x", pos.x.ToString());
-                speakerNode.SetAttribute("y", pos.y.ToString());
-                speakerNode.SetAttribute("z", pos.z.ToString());
+                speakerNode.SetAttribute("x", pos.x.ToString(CultureInfo.InvariantCulture));
+                speakerNode.SetAttribute("y", pos.y.ToString(CultureInfo.InvariantCulture));
+                speakerNode.SetAttribute("z", pos.z.ToString(CultureInfo.InvariantCulture));
                 root.AppendChild(speakerNode);
             }
             xmlMeta.AppendChild(root);
