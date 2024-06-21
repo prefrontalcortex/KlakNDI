@@ -239,10 +239,6 @@ sealed class NdiSenderEditor : UnityEditor.Editor
         }
         else
         {
-            if (!ndiSender.GetComponent<AudioListener>())
-            {
-                EditorGUILayout.HelpBox($"Missing AudioListener on this GameObject. Please add one, otherwise no audio will be send.", MessageType.Error);
-            }
             
 #if OSC_JACK
             if (!ndiSender.GetComponent<AdmOscSender>())
