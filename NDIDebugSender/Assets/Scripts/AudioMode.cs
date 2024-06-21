@@ -49,7 +49,7 @@ public class AudioMode : MonoBehaviour
                 _options.Add(new AudioDropDownOption(mode));
         }
         
-        _options.Add(new AudioDropDownOption( "Custom Config:"));
+        _options.Add(new AudioDropDownOption( "-- Custom Config ---"));
         foreach (var config in _customSpeakerConfigs)
         {
             _options.Add(new AudioDropDownOption(config));
