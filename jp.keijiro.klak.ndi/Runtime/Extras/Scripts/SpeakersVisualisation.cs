@@ -50,7 +50,7 @@ public class SpeakersVisualisation : MonoBehaviour
             return;
         }
 
-        if (speakerLevel.Length != _speakers.Count)
+        if (speakerLevel.Length > _speakers.Count)
             return;
         
         for (int i = 0; i < speakerLevel.Length; i++)
