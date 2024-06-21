@@ -105,6 +105,15 @@ namespace Klak.Ndi
                     destination[i] = MixSample(destination[i], source[i] * volume);
                 }
             }
+            
+            [BurstCompile]
+            internal static unsafe void MixArrays(float* destination, int offset, float* source, int sourceOffset, int length, float volume)
+            {
+                for (int i = 0; i < length; i++)
+                {
+                    destination[i + offset] = MixSample(destination[i + offset], source[i + sourceOffset] * volume);
+                }
+            }
 
             [BurstCompile]
             internal static unsafe void GetVU(float* source, int length, out float vu)
