@@ -66,6 +66,8 @@ public sealed partial class NdiSender : MonoBehaviour
     #endregion
     
     #region Sound Sender
+    
+    private AudioListenerBridge _audioListenerBridge;
     private int numSamples = 0;
     private int numChannels = 0;
     private float[] samples = new float[1];
@@ -101,6 +103,29 @@ public sealed partial class NdiSender : MonoBehaviour
         }
     }
 #endif
+
+    private void CheckAudioListener(bool willBeActive)
+    {
+        if (!Application.isPlaying)
+            return;
+        
+        if (willBeActive && !GetComponent<AudioListener>() && !_audioListenerBridge)
+        {
+            var audioListener = FindObjectOfType<AudioListener>();
+            if (!audioListener)
+            {
+                Debug.LogError("No AudioListener found in scene. Please add an AudioListener to the scene.");
+                return;
+            }
+            
+            _audioListenerBridge = audioListener.gameObject.AddComponent<AudioListenerBridge>();
+        }
+        if (!willBeActive && _audioListenerBridge)
+            Util.Destroy(_audioListenerBridge);
+        
+        if (willBeActive && _audioListenerBridge)
+            AudioListenerBridge.OnAudioFilterReadEvent = OnAudioFilterRead;
+    }
     
     private void ClearVirtualSpeakerListeners()
     {
@@ -550,6 +575,7 @@ public sealed partial class NdiSender : MonoBehaviour
     internal void ResetState(bool willBeActive)
     {
         _audioMode = audioMode;
+        CheckAudioListener(willBeActive);
         ClearVirtualSpeakerListeners();
         switch (audioMode)
         {
