@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Events;
 using Debug = UnityEngine.Debug;
@@ -178,7 +179,7 @@ namespace Klak.Ndi.Audio
         
         private static NativeArray<float> _audioSendStream;
         
-        private static NativeArray<float> _testAudioData;
+        private static AudioSourceData _testAudioData = new AudioSourceData();
         private static readonly object _testAudioLockObj = new object();
         private static double _testAudioDspStartTime = -1;
         private static bool _centeredAudioSourceOnAllListeners = true;
@@ -212,7 +213,6 @@ namespace Klak.Ndi.Audio
             lock (_testAudioLockObj)
             {
                 _currentTestChannel = channel;
-                _testAudioDspStartTime = AudioSettings.dspTime;
             }
         }
 
@@ -220,6 +220,8 @@ namespace Klak.Ndi.Audio
         {
             if (_audioSendStream.IsCreated)
                 _audioSendStream.Dispose();
+            
+            _testAudioData.Dispose();
         }
 
         internal static void ClearAllVirtualSpeakerListeners()
@@ -336,12 +338,8 @@ namespace Klak.Ndi.Audio
                 {
                     // Begin test mode
                     samples = _dspBufferSize;
-                    if (!_testAudioData.IsCreated || _testAudioData.Length != samples)
-                    {
-                        if (_testAudioData.IsCreated)
-                            _testAudioData.Dispose();
-                        _testAudioData = new NativeArray<float>(samples, Allocator.Persistent);
-                    }
+                    _testAudioData.CheckDataSize(samples);
+                    _testAudioData.ResetData();
                     
                     if (!_audioSendStream.IsCreated || _audioSendStream.Length != maxObjectBasedChannels * samples)
                         _audioSendStream = new NativeArray<float>(maxObjectBasedChannels * samples, Allocator.Persistent);
@@ -354,22 +352,25 @@ namespace Klak.Ndi.Audio
                     channels.Clear();
                     positions.Clear();
                     gains.Clear();
+                    if (_testAudioData.currentWeights == null || _testAudioData.currentWeights.Length != maxObjectBasedChannels)
+                        _testAudioData.currentWeights = new float[maxObjectBasedChannels];
+                    
+                    GenerateTestSound(_testAudioData.audioData, 0, _testAudioData.audioData.Length);
                     for (int i = 0; i < maxObjectBasedChannels; i++)
                     {
-                        if (i == _currentTestChannel)
+                        _testAudioData.currentWeights[i] = i == _currentTestChannel ? 1f : 0f;
+                        channels.Add( _testAudioData.audioData);
+                        positions.Add(Vector3.zero);
+                        gains.Add(i == _currentTestChannel ? 1 : 0);
+                    }
+                    
+                    _testAudioData.UpdateSmoothingWeights();
+                    unsafe
+                    {
+                        for (int i = 0; i < maxObjectBasedChannels; i++)
                         {
-                            GenerateTestSound(_testAudioData, 0, _testAudioData.Length);
-                            channels.Add( _testAudioData);
-                            positions.Add(Vector3.zero);
-                            gains.Add(1f);
-                            NativeArray<float>.Copy(channels[i], 0, _audioSendStream, i * samples, samples);
-                            
-                        }
-                        else
-                        {
-                            channels.Add( new NativeArray<float>());
-                            positions.Add(Vector3.zero);
-                            gains.Add(0f);
+                            BurstMethods.MixArrays((float*)_audioSendStream.GetUnsafePtr(), i * samples, (float*)_testAudioData.audioData.GetUnsafePtr(),
+                                0, samples, _testAudioData.smoothedWeights[i]);
                         }
                     }
 
@@ -467,25 +468,56 @@ namespace Klak.Ndi.Audio
             return true;
         }
 
-        private static void GenerateTestSound(NativeArray<float> destination, int startIndex, int samples)
+        private static int _textSound_nextTick = 0;
+        private static float _testSound_amp = 0.0F;
+        private static float _testSound_phase = 0.0F;
+        private static int _testSound_accent = 0;
+        
+        private static void GenerateTestSound(NativeArray<float> destination, int startIndex, int length)
         {
-            double offset;
+            const int bpm = 140;
+            const float gain = 0.5F;
+            const int signatureHi = 4;
+            const int signatureLo = 4;
+        
+            int samplesPerTick = _sampleRate * 60 / bpm * 4 / signatureLo;
+            
             lock (_testAudioLockObj)
             {
                 if (_testAudioDspStartTime < 0)
+                {
                     _testAudioDspStartTime = AudioSettings.dspTime;
-                offset = _testAudioDspStartTime;
+                    _testSound_accent = signatureHi;
+                    _textSound_nextTick = samplesPerTick;
+                }
             }
-            for (int i = 0; i < samples; i++)
+        
+            for (int n = 0; n < length; n++)
             {
-                // Create a sinus wave
-                float v = 2f * Mathf.Sin(((float)(AudioSettings.dspTime-offset) + (float)i / (float)(_sampleRate)));
-                destination[startIndex + i] = v;
+                float x = gain * _testSound_amp * Mathf.Sin(_testSound_phase);
+                destination[n + startIndex] = x;
+                _textSound_nextTick--;
+                if (_textSound_nextTick <= 0)
+                {
+                    _textSound_nextTick = samplesPerTick;
+                    _testSound_amp = 1.0F;
+                    if (++_testSound_accent > signatureHi)
+                    {
+                        _testSound_accent = 1;
+                        _testSound_amp *= 2.0F;
+                        _testSound_phase = 0;
+                    }
+                }
+                _testSound_phase += _testSound_amp * 0.3F;
+                _testSound_amp *= 0.993F;
             }
         }
 
         private static float GetSpatialBlend(AudioSourceSettings audioSourceSettings, float audioSourceAttenuation)
         {
+            if (audioSourceSettings.spatialBlendCurve == null)
+                return 0;
+            
             float spatialBlend = audioSourceSettings.spatialBlend *
                                  audioSourceSettings.spatialBlendCurve.Evaluate(
                                      Mathf.Clamp01(Mathf.Lerp(audioSourceSettings.minDistance,
@@ -632,34 +664,36 @@ namespace Klak.Ndi.Audio
                 
                 if (_testMode)
                 {
-                    if (!_testAudioData.IsCreated || _testAudioData.Length != samples)
-                    {
-                        if (_testAudioData.IsCreated)
-                            _testAudioData.Dispose();
-                        _testAudioData = new NativeArray<float>(samples, Allocator.Persistent);
-                    }
-                    GenerateTestSound(_testAudioData, 0, _testAudioData.Length);
+                    _testAudioData.CheckDataSize(samples);
+           
+                    GenerateTestSound(_testAudioData.audioData, 0, _testAudioData.audioData.Length);
 
+                    if (_testAudioData.currentWeights == null || _testAudioData.currentWeights.Length != _listenerDatas.Count)
+                        _testAudioData.currentWeights = new float[_listenerDatas.Count];
+                    for (int i = 0; i < _listenerDatas.Count; i++)
+                    {
+                        _testAudioData.currentWeights[i] =  i == _currentTestChannel ? 1f : 0f;
+                    }
+                    
+                    _testAudioData.UpdateSmoothingWeights();
+                    
                     for (int iListener = 0; iListener < _listenerDatas.Count; iListener++)
                     {
                         var listener = _listenerDatas[iListener];
                         listener.ResetAudioData(samples);
                         result.Add(listener.audioData);
-                        if (iListener == _currentTestChannel)
-                        {
-                            //BurstMethods.MixArrays();
-                            NativeArray<float>.Copy(_testAudioData, 0, listener.audioData, 0, samples);
-                        }
-                        NativeArray<float>.Copy(listener.audioData, 0, _audioSendStream, iListener * samples, samples);
                     }
+                    
+                    MixDataToListeners(_testAudioData.audioData, _testAudioData.smoothedWeights);
+                    CopyListenerDataToSendStream();
                     
                     vus = new float[_listenerDatas.Count];
                     vus[_currentTestChannel] = 1f;
                     return result;
                 }
                 
-                for (int iSpeaker = 0; iSpeaker < _listenerDatas.Count; iSpeaker++)
-                    _listenerDatas[iSpeaker].ResetAudioData(samples);
+                for (int iListener = 0; iListener < _listenerDatas.Count; iListener++)
+                    _listenerDatas[iListener].ResetAudioData(samples);
                 
                 for (int i = 0; i < _audioSourcesData.Count; i++)
                 {
@@ -687,7 +721,7 @@ namespace Klak.Ndi.Audio
                     }
                     
                     audioSource.UpdateSmoothingWeights();
-                    MixAudioSourceToListeners(audioSource, samples);
+                    MixDataToListeners(audioSource.audioData, audioSource.smoothedWeights);
                 }
 
                 CopyListenerDataToSendStream();
@@ -708,25 +742,25 @@ namespace Klak.Ndi.Audio
             }
         }
         
-        private static void MixAudioSourceToListeners(AudioSourceData audioSource, int samples)
+        private static void MixDataToListeners(NativeArray<float> data, float[] weights)
         {
-            if ( audioSource.currentWeights == null || audioSource.audioData.Length == 0 || audioSource.currentWeights.Length != _listenerDatas.Count)
+            if (weights == null || data.Length == 0 || weights.Length != _listenerDatas.Count)
                 return;
 
             for (int iListener = 0; iListener < _listenerDatas.Count; iListener++)
             {
                 var listener = _listenerDatas[iListener];
 
-                if (listener.audioData.Length != audioSource.audioData.Length)
+                if (listener.audioData.Length != data.Length)
                     // This should never happen!
                     Debug.LogError("Channel data length does not match audio source data length!");
                 
                 unsafe
                 {
                     var listenerPtr = (float*)listener.audioData.GetUnsafeReadOnlyPtr();
-                    var audioSourcePtr = (float*)audioSource.audioData.GetUnsafePtr();
+                    var audioSourcePtr = (float*)data.GetUnsafePtr();
                             
-                    BurstMethods.MixArrays(listenerPtr, audioSourcePtr, listener.audioData.Length,  audioSource.smoothedWeights[iListener]);
+                    BurstMethods.MixArrays(listenerPtr, audioSourcePtr, listener.audioData.Length, weights[iListener]);
                 }
             }
         }
