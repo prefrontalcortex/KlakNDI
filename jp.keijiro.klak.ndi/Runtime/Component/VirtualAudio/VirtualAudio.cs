@@ -50,9 +50,6 @@ namespace Klak.Ndi.Audio
             
             internal void UpdateSmoothingWeights()
             {
-                if (currentWeights == null || currentWeights.Length != _virtualListeners.Count)
-                    return;
-            
                 if (smoothedWeights == null ||
                     smoothedWeights.Length != currentWeights.Length)
                 {
@@ -61,9 +58,13 @@ namespace Klak.Ndi.Audio
                 }
             
                 float dspDelta = (float)_dspBufferSize / (float)_sampleRate;
-            
+
                 for (int i = 0; i < currentWeights.Length; i++)
+                {
                     smoothedWeights[i] = Mathf.Lerp(smoothedWeights[i], currentWeights[i], dspDelta * 4f);
+                    if (smoothedWeights[i] < 0.001f)
+                        smoothedWeights[i] = 0f;
+                }
             }
             
             internal void ResetData()
