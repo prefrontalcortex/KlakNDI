@@ -3,7 +3,8 @@
     "rootNamespace": "",
     "references": [
         "GUID:b59f669f136310547b59ad72df53b42f",
-        "GUID:6055be8ebefd69e48b49212b09b47b2f"
+        "GUID:6055be8ebefd69e48b49212b09b47b2f",
+        "GUID:9df4bb2434fa4444a85e58f9b2d5d6d2"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -12,6 +13,12 @@
     "precompiledReferences": [],
     "autoReferenced": false,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "jp.keijiro.osc-jack",
+            "expression": "",
+            "define": "OSC_JACK"
+        }
+    ],
     "noEngineReferences": false
 }
