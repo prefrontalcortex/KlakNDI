@@ -7,8 +7,9 @@ public class OscSetup : MonoBehaviour
 {
 #if !OSC_JACK
     [Header("[Please add OSC JACK to your project > https://github.com/keijiro/OscJack]")]
-#endif
+#else    
     [SerializeField] private AdmOscSender _oscSender;
+#endif
     [SerializeField] private TMP_InputField _ip;
     [SerializeField] private TMP_InputField _port;
     [SerializeField] private Slider _nearDistance;
@@ -25,7 +26,7 @@ public class OscSetup : MonoBehaviour
             Debug.LogError("OscSender is not set", this);
             return;
         }
-        
+
         if (_enableToggle)
         {
             _enableToggle.onValueChanged.AddListener(
@@ -55,7 +56,7 @@ public class OscSetup : MonoBehaviour
                     _farDistanceValue.text = value.ToString("F2");
                     _oscSender.SetFarDistance(value);
                 }));
-        }
+        } 
     }
 
     private void OnEnable()
