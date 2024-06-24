@@ -42,6 +42,7 @@ namespace Klak.Ndi.Audio
 			var go = new GameObject();
 			go.transform.parent = parent;
 			go.transform.localPosition = localPosition;
+			go.transform.rotation = localPosition == Vector3.zero ? Quaternion.identity : Quaternion.LookRotation( -localPosition.normalized);
 			go.name = "VirtualSpeaker";
 			go.SetActive(false);
 			go.hideFlags = HideFlags.NotEditable | HideFlags.DontSave;
