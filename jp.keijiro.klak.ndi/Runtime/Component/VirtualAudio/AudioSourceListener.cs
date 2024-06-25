@@ -40,33 +40,13 @@ namespace Klak.Ndi.Audio
                     return;
                 }
             }
-            
-            int samples =  data.Length / channels;
-            _audioSourceData.CheckDataSize(samples);
 
-            unsafe
+            lock (_lockObj)
             {
-                var dataPtr = UnsafeUtility.PinGCArrayAndGetDataAddress(data, out var handle);
-                var nativeData = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<float>(dataPtr, data.Length, Allocator.None);
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                var safety = AtomicSafetyHandle.Create();
-                NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeData, safety);
-#endif
-                lock (_lockObj)
-                {
-                    
-                    _audioSourceData.CheckDataSize(samples);
-                    var inputPtr = (float*)dataPtr;
-                    var outputPtr = (float*)_audioSourceData.audioData.GetUnsafePtr();
-                    
-                    BurstMethods.MixToMono(inputPtr, data.Length, outputPtr, channels);
-                    listenerWeights = _audioSourceData.currentWeights;
-                    _audioSourceData.settings = _TmpSettings;
-                }
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                AtomicSafetyHandle.Release(safety);
-#endif
-                UnsafeUtility.ReleaseGCObject(handle);
+                listenerWeights = _audioSourceData.currentWeights;
+                _audioSourceData.settings = _TmpSettings;
+                
+                VirtualAudio.SetAudioDataFromSource(_audioSourceData.id, data, channels);
             }
         }
 
@@ -154,7 +134,7 @@ namespace Klak.Ndi.Audio
                 {
                     if (_audioSourceData != null)
                     {
-                        VirtualAudio.UnRegisterAudioSource(_audioSourceData);
+                        VirtualAudio.UnregisterAudioSource(_audioSourceData);
                         _audioSourceData = null;
                     }
                 }
@@ -198,7 +178,7 @@ namespace Klak.Ndi.Audio
                 if (_audioSourceData == null)
                     return;
                 
-                VirtualAudio.UnRegisterAudioSource(_audioSourceData);
+                VirtualAudio.UnregisterAudioSource(_audioSourceData);
                 _audioSourceData = null;
             }
         }

@@ -107,6 +107,31 @@ namespace Klak.Ndi
             }
             
             [BurstCompile]
+            internal static unsafe void MixArraysWithDownMixToMono(float* destination, float* source, int length, int sourceChannels, float volume)
+            {
+                for (int i = 0; i < length; i++)
+                {
+                    float v = 0;
+                    int nonNullChannels = 0;
+                    for (int c = 0; c < sourceChannels; c++)
+                    {
+                        int sourceIndex = i * sourceChannels + c;
+                        v += source[sourceIndex];
+                        if (source[sourceIndex] != 0)
+                            nonNullChannels++;
+                    }
+
+                    if (nonNullChannels == 0)
+                        v = 0f;
+                    else
+                        v /= nonNullChannels;
+
+                    
+                    destination[i] = MixSample(destination[i], v * volume);
+                }
+            }
+            
+            [BurstCompile]
             internal static unsafe void MixArrays(float* destination, int offset, float* source, int sourceOffset, int length, float volume)
             {
                 for (int i = 0; i < length; i++)
