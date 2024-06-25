@@ -131,6 +131,8 @@ public sealed partial class NdiSender : MonoBehaviour
     {
         _useVirtualSpeakerListeners = false;
         VirtualAudio.UseVirtualAudio = false;
+        VirtualAudio.ActivateObjectBasedAudio(false);
+
         VirtualAudio.ClearAllVirtualSpeakerListeners();
     }
     
@@ -270,7 +272,7 @@ public sealed partial class NdiSender : MonoBehaviour
     {
         lock (_channelObjectLock)
         {
-            bool hasDataToSend = VirtualAudio.GetObjectBasedAudio(out var stream, out int samplesCount, _objectBasedChannels, _objectBasedPositions, _objectBasedGains, maxObjectBasedChannels);
+            bool hasDataToSend = VirtualAudio.GetObjectBasedAudio(out var stream, out int samplesCount, _objectBasedChannels, _objectBasedPositions, _objectBasedGains);
             if (!hasDataToSend)
             {
                 lock (_channelVisualisationsLock)
@@ -598,6 +600,7 @@ public sealed partial class NdiSender : MonoBehaviour
                 break;
             case AudioMode.ObjectBased:
                 VirtualAudio.UseVirtualAudio = true;
+                VirtualAudio.ActivateObjectBasedAudio(true, maxObjectBasedChannels);
                 _useVirtualSpeakerListeners = true;
                 break;
             default:

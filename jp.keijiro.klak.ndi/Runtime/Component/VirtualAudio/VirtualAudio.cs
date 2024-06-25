@@ -27,11 +27,12 @@ namespace Klak.Ndi.Audio
             public int forceToChannel;
         }
         
-        internal class AudioSourceData : IDisposable
+        internal class AudioSourceData
         {
             internal int id;
             
-            internal NativeArray<float> audioData;
+            internal NativeArray<float> audioStreamDestination;
+   
             public AudioSourceSettings settings;
             
             internal float[] currentWeights;
@@ -39,14 +40,10 @@ namespace Klak.Ndi.Audio
 
             public int objectBasedChannel = -1;
             
-            public void CheckDataSize(int sampleSize)
+            internal void CheckWeightsArray(int count)
             {
-                if (!audioData.IsCreated || audioData.Length < sampleSize)
-                {
-                    if (audioData.IsCreated)
-                        audioData.Dispose();
-                    audioData = new NativeArray<float>(sampleSize, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-                }
+                if (currentWeights == null || currentWeights.Length != count)
+                    currentWeights = new float[count];
             }
             
             internal void UpdateSmoothingWeights()
@@ -68,45 +65,11 @@ namespace Klak.Ndi.Audio
                 }
             }
             
-            internal void ResetData()
-            {
-                if (!audioData.IsCreated)
-                    return;
-                unsafe
-                {
-                    UnsafeUtility.MemClear(audioData.GetUnsafePtr(), audioData.Length * sizeof(float));
-                }
-            }
-
-            public void Dispose()
-            {
-                audioData.Dispose();
-            }
         }
 
-        internal class ListenerData : IDisposable
+        internal class ListenerData
         {
-            public NativeArray<float> audioData;
-            
-            internal void ResetAudioData(int sampleSize)
-            {
-                if (!audioData.IsCreated || audioData.Length < sampleSize)
-                {
-                    if (audioData.IsCreated)
-                        audioData.Dispose();
-                    audioData = new NativeArray<float>(sampleSize, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-                }
-                
-                unsafe
-                {
-                    UnsafeUtility.MemClear(audioData.GetUnsafePtr(), sampleSize * sizeof(float));
-                }
-            }
-            
-            public void Dispose()
-            {
-                audioData.Dispose();
-            }
+            public NativeArray<float> audioStreamDestination;
         }
         
         internal class VirtualListener 
@@ -163,7 +126,6 @@ namespace Klak.Ndi.Audio
         
         public static readonly UnityEvent<bool> OnVirtualAudioStateChanged = new UnityEvent<bool>();
         
-        internal static bool objectBasedAudio = false;
         private static int _audioSourceNextId = 0;
         private static bool _testMode = false;
         private static int _currentTestChannel = 0;
@@ -182,17 +144,28 @@ namespace Klak.Ndi.Audio
         private static AudioSourceData _testAudioData = new AudioSourceData();
         private static readonly object _testAudioLockObj = new object();
         private static double _testAudioDspStartTime = -1;
+        
         private static bool _centeredAudioSourceOnAllListeners = true;
         
         private static int _dspBufferSize;
         private static int _sampleRate;
+        private static double _lastCheckSetupTime = -1;
+        private static List<int> _usedObjectBasedChannels = new List<int>(32);
+
+        public static bool ObjectBasedAudio 
+        {
+            get => _objectBasedAudio;
+        }
+        
+        private static bool _objectBasedAudio = false;
+        private static int _maxObjectBasedChannels = 16;
         
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Init()
         {
             Application.quitting += OnApplicationQuit;
             
-            DisposeAllAudioSourceData();
+            ClearAllAudioSourceData();
             ClearAllVirtualSpeakerListeners();
             
             AudioSettings.GetDSPBufferSize(out _dspBufferSize, out int _);
@@ -207,6 +180,15 @@ namespace Klak.Ndi.Audio
                 _testAudioDspStartTime = AudioSettings.dspTime;
             }
         }
+        
+        public static void ActivateObjectBasedAudio(bool objectBased, int channelCount = 16)
+        {
+            _objectBasedAudio = objectBased;
+            if (objectBased)
+            {
+                _maxObjectBasedChannels = channelCount;
+            }
+        }   
 
         public static void SetAudioTestChannel(int channel)
         {
@@ -220,22 +202,17 @@ namespace Klak.Ndi.Audio
         {
             if (_audioSendStream.IsCreated)
                 _audioSendStream.Dispose();
-            
-            _testAudioData.Dispose();
         }
 
         internal static void ClearAllVirtualSpeakerListeners()
         {
             lock (_listenerDataLockObject)
             {
-                foreach (var l in _listenerDatas)
-                    l.Dispose();
                 _listenerDatas.Clear();
             }
                 
             lock (_listenerLockObject)
             {
-                
                 _virtualListeners.Clear();
                 _virtualListenersChanged = true;
             }
@@ -273,10 +250,7 @@ namespace Klak.Ndi.Audio
 
             lock (_listenerDataLockObject)
             {
-                _listenerDatas.Add(new ListenerData
-                {
-                    audioData = new NativeArray<float>(_dspBufferSize, Allocator.Persistent, NativeArrayOptions.UninitializedMemory)
-                });
+                _listenerDatas.Add(new ListenerData());
             }
         }
 
@@ -293,185 +267,305 @@ namespace Klak.Ndi.Audio
             return newData;
         }
 
-        private static void DisposeAllAudioSourceData()
+        private static void ClearAllAudioSourceData()
         {
             lock (_audioSourceLockObject)
             {
-                foreach (var audioSource in _audioSourcesData)
-                {
-                    audioSource.Value.Dispose();
-                }
+                foreach (var a in _audioSourcesData)
+                    if (a.Value != null)
+                        a.Value.id = -1;
                 _audioSourcesData.Clear();
             }
         }
         
-        internal static void UnRegisterAudioSource(AudioSourceData audioSourceData)
+        internal static void UnregisterAudioSource(AudioSourceData audioSourceData)
         {
             lock (_audioSourceLockObject)
             {
-                audioSourceData.Dispose();
                 _audioSourcesData.Remove(audioSourceData.id);
             }
         }
         
-        private static float GetAvgListenerDistanceFromCamera(Vector3 cameraPosition)
+        internal static void CheckSetup()
         {
-            float distanceFromCameraAvg = 0;
-            foreach (var listener in _virtualListeners)
+            bool CheckAudioStreamSize(int size)
             {
-                float d = Vector3.Distance(cameraPosition + listener.position, cameraPosition);
-                distanceFromCameraAvg += d;
+                if (!_audioSendStream.IsCreated || _audioSendStream.Length != size)
+                {
+                    if (_audioSendStream.IsCreated)
+                        _audioSendStream.Dispose();
+                    _audioSendStream = new NativeArray<float>(size, Allocator.Persistent);
+                    return false;
+                }
+
+                return true;
+            }
+            
+            if (_objectBasedAudio)
+            {
+                
+                int streamSize = _maxObjectBasedChannels * _dspBufferSize;
+                if (CheckAudioStreamSize(streamSize))
+                {
+                    lock (_audioSourcesData)
+                    {
+                        for (int i = 0; i < _audioSourcesData.Count; i++)
+                        {
+                            var audioSourceData = _audioSourcesData.ElementAt(i).Value;
+                            if (audioSourceData.objectBasedChannel != -1)
+                                audioSourceData.audioStreamDestination = _audioSendStream.GetSubArray(audioSourceData.objectBasedChannel * _dspBufferSize, _dspBufferSize);
+                        }
+                    }
+                }
+                AssignObjectBasedChannelsToAudioSources();
+            
+            }
+            else
+            {
+                lock (_listenerDataLockObject)
+                {
+                    int streamSize = _listenerDatas.Count * _dspBufferSize;
+                    CheckAudioStreamSize(streamSize);
+                    CreateListenersSubArrays();
+                }
             }
 
-            distanceFromCameraAvg /= _virtualListeners.Count;
-            return distanceFromCameraAvg;
+            if (_lastCheckSetupTime < AudioSettings.dspTime)
+            {
+                _lastCheckSetupTime = AudioSettings.dspTime;
+                ClearAudioStream();
+            }
+        }
+
+        private static void ClearAudioStream()
+        {
+            unsafe
+            {
+                UnsafeUtility.MemClear(_audioSendStream.GetUnsafePtr(), _audioSendStream.Length * sizeof(float));
+            }
         }
         
-        internal static bool GetObjectBasedAudio(out NativeArray<float> stream,  out int samples, List<NativeArray<float>> channels, List<Vector3> positions, List<float> gains, int maxObjectBasedChannels)
+        private static void AssignObjectBasedChannelsToAudioSources()
+        {
+            _usedObjectBasedChannels.Clear();
+            foreach (var audioSource in _audioSourcesData)
+            {
+                if (audioSource.Value.objectBasedChannel != -1)
+                    _usedObjectBasedChannels.Add(audioSource.Value.objectBasedChannel);
+            }
+            
+            foreach (var audioSource in _audioSourcesData)
+            {
+                if (audioSource.Value.objectBasedChannel == -1)
+                {
+                    // Find free channel:
+                    for (int i = 0; i < _maxObjectBasedChannels; i++)
+                    {
+                        if (_usedObjectBasedChannels.Contains(i))
+                            continue;
+
+                        audioSource.Value.objectBasedChannel = i;
+                        audioSource.Value.audioStreamDestination = _audioSendStream.GetSubArray(i * _dspBufferSize, _dspBufferSize);
+                        _usedObjectBasedChannels.Add(i);
+                        break;
+                    }
+                        
+                    // No free channel found
+                }
+            }
+        }
+        
+        internal static bool GetObjectBasedAudio(out NativeArray<float> stream,  out int samples, List<NativeArray<float>> channels, List<Vector3> positions, List<float> gains)
         {
             lock (_audioSourcesData)
             lock (_listenerLockObject)
             {
-                samples = 0;
+                samples = _dspBufferSize;
 
                 if (_testMode)
                 {
                     // Begin test mode
-                    samples = _dspBufferSize;
-                    _testAudioData.CheckDataSize(samples);
-                    _testAudioData.ResetData();
+                    CheckSetup();
                     
-                    if (!_audioSendStream.IsCreated || _audioSendStream.Length != maxObjectBasedChannels * samples)
-                        _audioSendStream = new NativeArray<float>(maxObjectBasedChannels * samples, Allocator.Persistent);
+                    AddTestSoundToAudioStream();
 
-                    unsafe
-                    {
-                        UnsafeUtility.MemClear(_audioSendStream.GetUnsafePtr(), _audioSendStream.Length * sizeof(float));
-                    }
-                    
                     channels.Clear();
                     positions.Clear();
                     gains.Clear();
-                    if (_testAudioData.currentWeights == null || _testAudioData.currentWeights.Length != maxObjectBasedChannels)
-                        _testAudioData.currentWeights = new float[maxObjectBasedChannels];
-                    
-                    GenerateTestSound(_testAudioData.audioData, 0, _testAudioData.audioData.Length);
-                    for (int i = 0; i < maxObjectBasedChannels; i++)
+                    for (int i = 0; i < _maxObjectBasedChannels; i++)
                     {
-                        _testAudioData.currentWeights[i] = i == _currentTestChannel ? 1f : 0f;
-                        channels.Add( _testAudioData.audioData);
+                        channels.Add( _testAudioData.audioStreamDestination);
                         positions.Add(Vector3.zero);
                         gains.Add(i == _currentTestChannel ? 1 : 0);
                     }
                     
-                    _testAudioData.UpdateSmoothingWeights();
-                    unsafe
-                    {
-                        for (int i = 0; i < maxObjectBasedChannels; i++)
-                        {
-                            BurstMethods.MixArrays((float*)_audioSendStream.GetUnsafePtr(), i * samples, (float*)_testAudioData.audioData.GetUnsafePtr(),
-                                0, samples, _testAudioData.smoothedWeights[i]);
-                        }
-                    }
-
                     stream = _audioSendStream;
                     return true;
                     // End test mode
                 }
                 
-                if (channels.Count != maxObjectBasedChannels || positions.Count != maxObjectBasedChannels)
+                if (channels.Count != _maxObjectBasedChannels || positions.Count != _maxObjectBasedChannels)
                 {
                     channels.Clear();
                     positions.Clear();
                     gains.Clear();
-                    for (int i = 0; i < maxObjectBasedChannels; i++)
+                    for (int i = 0; i < _maxObjectBasedChannels; i++)
                     {
                         channels.Add( new NativeArray<float>());
                         positions.Add(Vector3.zero);
                         gains.Add(0f);
                     }
                 }
-
-                var usedChannels = new List<int>(maxObjectBasedChannels);
-
+                
                 if (_audioSourcesData.Count == 0)
                 {
                     stream = _audioSendStream;
                     return false;
                 }
 
-                // Collecting which channels are used 
-                foreach (var audioSource in _audioSourcesData)
-                {
-                    if (audioSource.Value.objectBasedChannel != -1)
-                        usedChannels.Add(audioSource.Value.objectBasedChannel);
-                }
-                
-                // Preparing: Find max sample size and assign free channels when needed
-                foreach (var audioSource in _audioSourcesData)
-                {
-                    if (samples < audioSource.Value.audioData.Length)
-                        samples = audioSource.Value.audioData.Length;
-
-                    if (audioSource.Value.objectBasedChannel == -1)
-                    {
-                        // Find free channel:
-                        for (int i = 0; i < maxObjectBasedChannels; i++)
-                        {
-                            if (usedChannels.Contains(i))
-                                continue;
-
-                            audioSource.Value.objectBasedChannel = i;
-                            usedChannels.Add(i);
-                            break;
-                        }
-                        
-                        // No free channel found
-                    }
-                }
-                
-                int streamSize = maxObjectBasedChannels * samples; 
-                if (!_audioSendStream.IsCreated || _audioSendStream.Length != streamSize)
-                    _audioSendStream = new NativeArray<float>(streamSize, Allocator.Persistent);
-
-                unsafe
-                {
-                    UnsafeUtility.MemClear(_audioSendStream.GetUnsafePtr(), streamSize * sizeof(float));
-                }
                 stream = _audioSendStream;
                 
-                // Assign AudioSource Data to channels
                 foreach (var audioSource in _audioSourcesData)
                 {
                     var channel = audioSource.Value.objectBasedChannel;
                     if (channel == -1)
                         continue;
-                    channels[channel] = audioSource.Value.audioData;
+                    channels[channel] = audioSource.Value.audioStreamDestination;
                     positions[channel] = audioSource.Value.settings.position;
                     gains[channel] = audioSource.Value.settings.volume;
                 }
 
                 // Reset Data for not used channels
-                for (int i = 0; i < maxObjectBasedChannels; i++)
+                for (int i = 0; i < _maxObjectBasedChannels; i++)
                 {
-                    if (!usedChannels.Contains(i))
+                    if (!_usedObjectBasedChannels.Contains(i))
                     {
                         channels[i] = new NativeArray<float>();
                         positions[i] = Vector3.zero;
                         gains[i] = 0f;
                     }
-                    else
-                       NativeArray<float>.Copy(channels[i], 0, _audioSendStream, i * samples, samples);
                 }
             }
 
             return true;
         }
+        
+        public static void SetAudioDataFromSource(int id, float[] data, int channelCount)
+        {
+            if (!_useVirtualAudio)
+                return;
+            
+            lock (_audioSourceLockObject)
+            {
+                if (!_audioSourcesData.TryGetValue(id, out var audioSourceData))
+                {
+                    return;
+                }
+                
+                CheckSetup();
+                
+                unsafe
+                {
+                    var dataPtr = UnsafeUtility.PinGCArrayAndGetDataAddress(data, out var handle);
+                    var nativeData =
+                        NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<float>(dataPtr, data.Length,
+                            Allocator.None);
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+                    var safety = AtomicSafetyHandle.Create();
+                    NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeData, safety);
+#endif
+                    
+                    var inputPtr = (float*)dataPtr;
 
+                    if (_objectBasedAudio)
+                    {
+                        var outputPtr = (float*)audioSourceData.audioStreamDestination.GetUnsafePtr();
+                        BurstMethods.MixToMono(inputPtr, data.Length, outputPtr, channelCount);
+                    }
+                    else
+                    {
+                        lock (_listenerDataLockObject)
+                        {
+                            audioSourceData.CheckWeightsArray(_listenerDatas.Count);
+
+                            int forceToChannel = audioSourceData.settings.forceToChannel;
+                            if (forceToChannel != -1)
+                            {
+                                if (forceToChannel > _listenerDatas.Count - 1)
+                                {
+                                    Debug.LogError(
+                                        "Can't force AudioSource to channel. Wrong channel is set. OutOfBound");
+                                }
+                                else
+                                {
+                                    for (int j = 0; j < audioSourceData.currentWeights.Length; j++)
+                                        audioSourceData.currentWeights[j] = forceToChannel == j ? 1 : 0;
+                                }
+                            }
+                            
+                            audioSourceData.UpdateSmoothingWeights();
+                            DownMixToMonoAndMixDataToListeners(nativeData, channelCount,
+                                audioSourceData.smoothedWeights);
+                        }
+                    }
+                    
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+                    AtomicSafetyHandle.Release(safety);
+#endif
+                    UnsafeUtility.ReleaseGCObject(handle);
+                }
+            }
+        }
+        
+#region Test Sound
+        
         private static int _textSound_nextTick = 0;
         private static float _testSound_amp = 0.0F;
         private static float _testSound_phase = 0.0F;
         private static int _testSound_accent = 0;
+        
+        private static void AddTestSoundToAudioStream()
+        {
+            ClearAudioStream();
+
+            if (!_testAudioData.audioStreamDestination.IsCreated || _testAudioData.audioStreamDestination.Length != _dspBufferSize)
+            {
+                if (_testAudioData.audioStreamDestination.IsCreated)
+                    _testAudioData.audioStreamDestination.Dispose();
+                _testAudioData.audioStreamDestination = new NativeArray<float>(_dspBufferSize, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            }
+                    
+            GenerateTestSound(_testAudioData.audioStreamDestination, 0, _testAudioData.audioStreamDestination.Length);
+            
+            unsafe
+            {
+                if (_objectBasedAudio)
+                {
+                    _testAudioData.CheckWeightsArray(_maxObjectBasedChannels);
+                    for (int i = 0; i < _maxObjectBasedChannels; i++)
+                        _testAudioData.currentWeights[i] = i == _currentTestChannel ? 1f : 0f;
+                    _testAudioData.UpdateSmoothingWeights();
+                    
+                    for (int i = 0; i < _maxObjectBasedChannels; i++)
+                    {
+                        BurstMethods.MixArrays((float*)_audioSendStream.GetUnsafePtr(), i * _dspBufferSize, (float*)_testAudioData.audioStreamDestination.GetUnsafePtr(),
+                            0, _dspBufferSize, _testAudioData.smoothedWeights[i]);
+                    }
+                }
+                else
+                {
+                    CreateListenersSubArrays();
+                    
+                    _testAudioData.CheckWeightsArray(_listenerDatas.Count);
+                    for (int i = 0; i < _listenerDatas.Count; i++)
+                        _testAudioData.currentWeights[i] =  i == _currentTestChannel ? 1f : 0f;
+                    _testAudioData.UpdateSmoothingWeights();
+                    
+                    MixDataToListeners(_testAudioData.audioStreamDestination, _testAudioData.smoothedWeights);
+                }
+            }
+        }
         
         private static void GenerateTestSound(NativeArray<float> destination, int startIndex, int length)
         {
@@ -512,28 +606,7 @@ namespace Klak.Ndi.Audio
                 _testSound_amp *= 0.993F;
             }
         }
-
-        private static float GetSpatialBlend(AudioSourceSettings audioSourceSettings, float audioSourceAttenuation)
-        {
-            if (audioSourceSettings.spatialBlendCurve == null)
-                return 0;
-            
-            float spatialBlend = audioSourceSettings.spatialBlend *
-                                 audioSourceSettings.spatialBlendCurve.Evaluate(
-                                     Mathf.Clamp01(Mathf.Lerp(audioSourceSettings.minDistance,
-                                         audioSourceSettings.maxDistance, audioSourceAttenuation)));
-            return spatialBlend;
-        }
-
-        private static void ApplySpatialBlendToWeights(float[] weights, float spatialBlend)
-        {
-            for (int i = 0; i < weights.Length; i++)
-            {
-                float weight = weights[i];
-                float spatial = Mathf.Lerp(weight, 1f, 1f - spatialBlend);
-                weights[i] = spatial;
-            }
-        }
+#endregion
 
         private static void UpdateVirtualListeners()
         {
@@ -566,36 +639,32 @@ namespace Klak.Ndi.Audio
         internal static void UpdateAudioSourceToListenerWeights(Vector3 cameraPosition, bool useCameraPosForAttenuation = false)
         {
             UpdateVirtualListeners();
-            float distanceFromCameraAvg = GetAvgListenerDistanceFromCamera(cameraPosition);
+
+            if (ObjectBasedAudio)
+                return;
             
             lock (_audioSourcesData)
             lock (_listenerLockObject)
             {
+                float avgListenerDistanceFromCamera = GetAvgListenerDistanceFromCamera(cameraPosition);
                 foreach (var audioSourceKVP in _audioSourcesData)
                 {
                     var audioSource = audioSourceKVP.Value;
                     var audioSourceSettings = audioSource.settings;
                     
-                    if (audioSource.currentWeights == null || audioSource.currentWeights.Length != _virtualListeners.Count)
-                        audioSource.currentWeights = new float[_virtualListeners.Count];
-                    
-                    if (!audioSource.audioData.IsCreated)
-                    {
-                        Array.Fill(audioSource.currentWeights, 0f);        
-                        continue;
-                    }
+                    audioSource.CheckWeightsArray(_virtualListeners.Count);
                     
                     float cameraDistanceToAudioSource = Vector3.Distance(audioSourceSettings.position, cameraPosition);
-
+                    
                     Array.Fill(audioSource.currentWeights, 0f);
                     
                     var usedDistance = useCameraPosForAttenuation
                         ? cameraDistanceToAudioSource
-                        : Mathf.Max(0, cameraDistanceToAudioSource - distanceFromCameraAvg);
+                        : Mathf.Max(0, cameraDistanceToAudioSource - avgListenerDistanceFromCamera);
                     var audioSourceAttenuation = GetDistanceAttenuation(usedDistance, audioSourceSettings);
                     var spatialBlend = GetSpatialBlend(audioSourceSettings, audioSourceAttenuation);
                     var blendToCenter = _centeredAudioSourceOnAllListeners ? 
-                        Mathf.Pow(Mathf.Clamp01(Mathf.InverseLerp( distanceFromCameraAvg, 1f, cameraDistanceToAudioSource)), 2f)
+                        Mathf.Pow(Mathf.Clamp01(Mathf.InverseLerp( avgListenerDistanceFromCamera, 1f, cameraDistanceToAudioSource)), 2f)
                         : 0;
 
                     void ApplyDistanceAttenuationAndSourceVolumeToWeights()
@@ -620,121 +689,62 @@ namespace Klak.Ndi.Audio
                 }
             }
         }
+
+        private static void CreateListenersSubArrays()
+        {
+            for (int i = 0; i < _listenerDatas.Count(); i++)
+            {
+                _listenerDatas[i].audioStreamDestination = _audioSendStream.GetSubArray(i * _dspBufferSize, _dspBufferSize);
+            }
+        }
         
         /// <summary>
         /// Get the final mixed audio channels
         /// </summary>
         /// <param name="stream">returns the mixed audio stream. Dispose should not be called on this NativeArray.</param>
         /// <param name="samples">returns the sample amount</param>
-        /// <param name="cameraPosition">Current camera position</param>
-        /// <param name="useCameraPosForAttenuation">When false, the volume attenuations are based on speaker to audiosource distance</param>
         /// <returns></returns>
         internal static List<NativeArray<float>> GetMixedAudio(out NativeArray<float> stream, out int samples, out float[] vus)
         {
-            samples = 0;
-            stream = _audioSendStream;
-
+            samples = _dspBufferSize;
             lock (_audioSourcesData)
             lock (_listenerDataLockObject)
             {
                 List<NativeArray<float>> result = new List<NativeArray<float>>(_listenerDatas.Count);
-                samples = 0;
 
+                CheckSetup();
+                stream = _audioSendStream;
+                
                 if (_virtualListeners.Count == 0 || _audioSourcesData.Count == 0)
                 {
                     vus = new float[_listenerDatas.Count];
                     return result;
                 }
                 
-                foreach (var audioSource in _audioSourcesData)
-                {
-                    if (samples < audioSource.Value.audioData.Length)
-                        samples = audioSource.Value.audioData.Length;
-                }
-                
-                int streamSize = _listenerDatas.Count * samples; 
-                if (!_audioSendStream.IsCreated || _audioSendStream.Length != streamSize)
-                    _audioSendStream = new NativeArray<float>(streamSize, Allocator.Persistent);
-
-                unsafe
-                {
-                    UnsafeUtility.MemClear(_audioSendStream.GetUnsafePtr(), streamSize * sizeof(float));
-                }
-                stream = _audioSendStream;
-                
                 if (_testMode)
                 {
-                    _testAudioData.CheckDataSize(samples);
-           
-                    GenerateTestSound(_testAudioData.audioData, 0, _testAudioData.audioData.Length);
-
-                    if (_testAudioData.currentWeights == null || _testAudioData.currentWeights.Length != _listenerDatas.Count)
-                        _testAudioData.currentWeights = new float[_listenerDatas.Count];
-                    for (int i = 0; i < _listenerDatas.Count; i++)
-                    {
-                        _testAudioData.currentWeights[i] =  i == _currentTestChannel ? 1f : 0f;
-                    }
-                    
-                    _testAudioData.UpdateSmoothingWeights();
-                    
                     for (int iListener = 0; iListener < _listenerDatas.Count; iListener++)
                     {
                         var listener = _listenerDatas[iListener];
-                        listener.ResetAudioData(samples);
-                        result.Add(listener.audioData);
+                        result.Add(listener.audioStreamDestination);
                     }
-                    
-                    MixDataToListeners(_testAudioData.audioData, _testAudioData.smoothedWeights);
-                    CopyListenerDataToSendStream();
+                    AddTestSoundToAudioStream();
                     
                     vus = new float[_listenerDatas.Count];
                     vus[_currentTestChannel] = 1f;
                     return result;
                 }
                 
-                for (int iListener = 0; iListener < _listenerDatas.Count; iListener++)
-                    _listenerDatas[iListener].ResetAudioData(samples);
-                
-                for (int i = 0; i < _audioSourcesData.Count; i++)
-                {
-                    var audioSource = _audioSourcesData.ElementAt(i).Value;
-                    int forceToChannel =  audioSource.settings.forceToChannel;
-
-                    if (forceToChannel != -1)
-                    {
-                        if (forceToChannel > _listenerDatas.Count - 1)
-                        {
-                            Debug.LogError("Can't force AudioSource to channel. Wrong channel is set. OutOfBound");
-                        }
-                        else
-                        {
-                            var listener = _listenerDatas[forceToChannel];
-                            unsafe
-                            {
-                                var inputPtr = (float*)listener.audioData.GetUnsafeReadOnlyPtr();
-                                var outputPtr = (float*)audioSource.audioData.GetUnsafePtr();
-                            
-                                BurstMethods.MixArrays(inputPtr, outputPtr, listener.audioData.Length,  audioSource.settings.volume);
-                            }
-                            continue;
-                        }
-                    }
-                    
-                    audioSource.UpdateSmoothingWeights();
-                    MixDataToListeners(audioSource.audioData, audioSource.smoothedWeights);
-                }
-
-                CopyListenerDataToSendStream();
                 vus = new float[_listenerDatas.Count];
                 unsafe
                 {
                     for (int i = 0; i < _listenerDatas.Count; i++)
                     {
-                        var inputPtr = (float*)_listenerDatas[i].audioData.GetUnsafeReadOnlyPtr();
-                        BurstMethods.GetVU(inputPtr, _listenerDatas[i].audioData.Length, out var vu);
+                        var inputPtr = (float*)_listenerDatas[i].audioStreamDestination.GetUnsafeReadOnlyPtr();
+                        BurstMethods.GetVU(inputPtr, _listenerDatas[i].audioStreamDestination.Length, out var vu);
                         vus[i] = vu;
                         
-                        result.Add(_listenerDatas[i].audioData);
+                        result.Add(_listenerDatas[i].audioStreamDestination);
                     }
                 }
                 
@@ -751,29 +761,45 @@ namespace Klak.Ndi.Audio
             {
                 var listener = _listenerDatas[iListener];
 
-                if (listener.audioData.Length != data.Length)
+                if (listener.audioStreamDestination.Length != data.Length)
                     // This should never happen!
                     Debug.LogError("Channel data length does not match audio source data length!");
                 
                 unsafe
                 {
-                    var listenerPtr = (float*)listener.audioData.GetUnsafeReadOnlyPtr();
+                    var listenerPtr = (float*)listener.audioStreamDestination.GetUnsafeReadOnlyPtr();
                     var audioSourcePtr = (float*)data.GetUnsafePtr();
                             
-                    BurstMethods.MixArrays(listenerPtr, audioSourcePtr, listener.audioData.Length, weights[iListener]);
+                    BurstMethods.MixArrays(listenerPtr, audioSourcePtr, listener.audioStreamDestination.Length, weights[iListener]);
                 }
             }
         }
-
-        private static void CopyListenerDataToSendStream()
+        
+        private static void DownMixToMonoAndMixDataToListeners(NativeArray<float> data, int dataChannels, float[] weights)
         {
+            if (weights == null || data.Length == 0 || weights.Length != _listenerDatas.Count)
+                return;
+
             for (int iListener = 0; iListener < _listenerDatas.Count; iListener++)
             {
-                var listData = _listenerDatas[iListener];
-                NativeArray<float>.Copy(listData.audioData, 0, _audioSendStream, iListener * listData.audioData.Length, listData.audioData.Length);
+                var listener = _listenerDatas[iListener];
+                if (weights[iListener] <= 0.001f)
+                    continue;
+
+                if (listener.audioStreamDestination.Length != data.Length / dataChannels)
+                    // This should never happen!
+                    Debug.LogError("Channel data length does not match audio source data length!");
+                
+                unsafe
+                {
+                    var listenerPtr = (float*)listener.audioStreamDestination.GetUnsafeReadOnlyPtr();
+                    var audioSourcePtr = (float*)data.GetUnsafePtr();
+                            
+                    BurstMethods.MixArraysWithDownMixToMono(listenerPtr, audioSourcePtr, listener.audioStreamDestination.Length, dataChannels, weights[iListener]);
+                }
             }
         }
-
+        
         private static void CalculateWeightsBasedOnSimplePlanarAzimuthPanning(float[] weights, AudioSourceSettings audioSourceSettings, float centerBlend)
         {
             BurstMethods.GetSphericalCoordinates(out var spherical, audioSourceSettings.position);
@@ -822,6 +848,7 @@ namespace Klak.Ndi.Audio
             
         }
 
+#region Helpers
         private static void FindLeftAndRightListenerBasedOnAzimuth(SphericalCoordinate source, out float leftAngle,
             out VirtualListener leftListener, out float rightAngle, out VirtualListener rightListener, out float angleBetweenLeftAndRight)
         {
@@ -852,15 +879,13 @@ namespace Klak.Ndi.Audio
                     rightAngle = listenerAnglePosFromSource;
                 }
             }
-
-
+            
             if (leftListener != null && rightListener != null)
             {
                 angleBetweenLeftAndRight = Mathf.Abs(leftListener.sphericalCoordinate.AzimuthAngleDifferenceFrom(rightListener.sphericalCoordinate.azimuth));
             }
         }
-
-        #region Helpers
+        
         private static float GetDistanceAttenuation(float distance, AudioSourceSettings audioSettings)
         {
             switch (audioSettings.rolloffMode)
@@ -879,6 +904,40 @@ namespace Klak.Ndi.Audio
             }
         }
 
-        #endregion
+        private static float GetAvgListenerDistanceFromCamera(Vector3 cameraPosition)
+        {
+            float distanceFromCameraAvg = 0;
+            foreach (var listener in _virtualListeners)
+            {
+                float d = Vector3.Distance(cameraPosition + listener.position, cameraPosition);
+                distanceFromCameraAvg += d;
+            }
+
+            distanceFromCameraAvg /= _virtualListeners.Count;
+            return distanceFromCameraAvg;
+        }
+        
+        private static float GetSpatialBlend(AudioSourceSettings audioSourceSettings, float audioSourceAttenuation)
+        {
+            if (audioSourceSettings.spatialBlendCurve == null)
+                return 0;
+            
+            float spatialBlend = audioSourceSettings.spatialBlend *
+                                 audioSourceSettings.spatialBlendCurve.Evaluate(
+                                     Mathf.Clamp01(Mathf.Lerp(audioSourceSettings.minDistance,
+                                         audioSourceSettings.maxDistance, audioSourceAttenuation)));
+            return spatialBlend;
+        }
+
+        private static void ApplySpatialBlendToWeights(float[] weights, float spatialBlend)
+        {
+            for (int i = 0; i < weights.Length; i++)
+            {
+                float weight = weights[i];
+                float spatial = Mathf.Lerp(weight, 1f, 1f - spatialBlend);
+                weights[i] = spatial;
+            }
+        }
+#endregion
     }
 }
