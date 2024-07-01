@@ -1,6 +1,4 @@
 using System;
-using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
 namespace Klak.Ndi.Audio
@@ -125,7 +123,7 @@ namespace Klak.Ndi.Audio
             {
                 lock (_lockObj)
                 {
-                    _audioSourceData = VirtualAudio.RegisterAudioSourceChannel();
+                    _audioSourceData = VirtualAudio.RegisterAudioSourceChannel(_TmpSettings);
                 }
             }
             else
@@ -166,7 +164,7 @@ namespace Klak.Ndi.Audio
             
             lock (_lockObj)
             {
-                _audioSourceData = VirtualAudio.RegisterAudioSourceChannel();
+                _audioSourceData = VirtualAudio.RegisterAudioSourceChannel(_TmpSettings);
             }
         }
         

@@ -76,7 +76,6 @@ public sealed partial class NdiSender : MonoBehaviour
     private Vector3 _listenerPosition;
     private object _lockObj = new object();
     private IntPtr _metaDataPtr = IntPtr.Zero;
-    private bool _useVirtualSpeakerListeners = false;
     private float[] _channelVisualisations;
     private object _channelVisualisationsLock = new object();
     private object _channelObjectLock = new object();
@@ -129,7 +128,6 @@ public sealed partial class NdiSender : MonoBehaviour
     
     private void ClearVirtualSpeakerListeners()
     {
-        _useVirtualSpeakerListeners = false;
         VirtualAudio.UseVirtualAudio = false;
         VirtualAudio.ActivateObjectBasedAudio(false);
 
@@ -147,7 +145,6 @@ public sealed partial class NdiSender : MonoBehaviour
         
         VirtualAudio.AddListener( new Vector3(-distance, 0f, -distance), 1f);
         VirtualAudio.AddListener( new Vector3(distance, 0f, -distance), 1f);
-        _useVirtualSpeakerListeners = true;
     }    
     
     private void CreateAudioSetup_5point1()
@@ -164,7 +161,6 @@ public sealed partial class NdiSender : MonoBehaviour
         
         VirtualAudio.AddListener( new Vector3(-distance, 0f, -distance), 1f);
         VirtualAudio.AddListener( new Vector3(distance, 0f, -distance), 1f);
-        _useVirtualSpeakerListeners = true;
     }
 
     private void CreateAudioSetup_7point1()
@@ -184,7 +180,6 @@ public sealed partial class NdiSender : MonoBehaviour
         
         VirtualAudio.AddListener( new Vector3(-distance, 0f, -distance), 1f);
         VirtualAudio.AddListener( new Vector3(distance, 0f, -distance), 1f);
-        _useVirtualSpeakerListeners = true;
     }
 
     private void CreateAudioSetup_32Array()
@@ -200,7 +195,6 @@ public sealed partial class NdiSender : MonoBehaviour
             float z = Mathf.Cos(angle) * virtualListenerDistance;
             VirtualAudio.AddListener(new Vector3(x, 0f, z), 1f);
         }
-        _useVirtualSpeakerListeners = true;
     }
 
     private void CreateAudioSetup_bySpeakerConfig()
@@ -218,7 +212,6 @@ public sealed partial class NdiSender : MonoBehaviour
         {
             VirtualAudio.AddListener(allSpeakers[i].position, allSpeakers[i].volume);
         }
-        _useVirtualSpeakerListeners = true;
     }
     
     private void Update()
@@ -228,7 +221,9 @@ public sealed partial class NdiSender : MonoBehaviour
             _listenerPosition = transform.position;
         }
 
-        if (_audioMode != audioMode)
+        if (audioMode != AudioMode.CustomVirtualAudioSetup)
+            VirtualAudio.PlayCenteredAudioSourceOnAllListeners = playCenteredAudioSourcesOnAllSpeakers;
+        if (_audioMode != audioMode || _lastVirtualListenerDistance != virtualListenerDistance)
         {
             ResetState();
         }
@@ -262,7 +257,7 @@ public sealed partial class NdiSender : MonoBehaviour
         {
             SendObjectBasedChannels();
         }
-        else if (_useVirtualSpeakerListeners)
+        else if (VirtualAudio.UseVirtualAudio)
         {
             SendCustomListenerData();
         }
@@ -571,14 +566,18 @@ public sealed partial class NdiSender : MonoBehaviour
     #region Component state controller
 
     Camera _attachedCamera;
-    
+    private float _lastVirtualListenerDistance = -1f;
     
     // Component state reset without NDI object disposal
     internal void ResetState(bool willBeActive)
     {
         _audioMode = audioMode;
         CheckAudioListener(willBeActive);
-        ClearVirtualSpeakerListeners();
+        
+        if (audioMode != AudioMode.CustomVirtualAudioSetup)
+            ClearVirtualSpeakerListeners();
+
+        _lastVirtualListenerDistance = virtualListenerDistance;
         switch (audioMode)
         {
             case AudioMode.AudioListener:
@@ -595,13 +594,14 @@ public sealed partial class NdiSender : MonoBehaviour
             case AudioMode.Virtual32Array:
                 CreateAudioSetup_32Array();
                 break;
-            case AudioMode.CustomSpeakerConfig:
+            case AudioMode.SpeakerConfigAsset:
                 CreateAudioSetup_bySpeakerConfig();
                 break;
             case AudioMode.ObjectBased:
                 VirtualAudio.UseVirtualAudio = true;
                 VirtualAudio.ActivateObjectBasedAudio(true, maxObjectBasedChannels);
-                _useVirtualSpeakerListeners = true;
+                break;
+            case AudioMode.CustomVirtualAudioSetup:
                 break;
             default:
                 throw new ArgumentOutOfRangeException();

@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 5764482689878002911}
   - component: {fileID: 6798514601335304949}
   - component: {fileID: 4024555780226260472}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: handle_xz
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -131,7 +131,7 @@ GameObject:
   - component: {fileID: 4405095193404049680}
   - component: {fileID: 7752925494322191800}
   - component: {fileID: 2773735247809031637}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Audio Source
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -267,8 +267,8 @@ MonoBehaviour:
     channel: 0
   _showDebugGizmos: 0
   _azimuth: 334.15112
-  _elevation: 6.830346
-  _distance: 12.612474
+  _elevation: 4.565571
+  _distance: 12.562822
 --- !u!1 &3208681296400018396
 GameObject:
   m_ObjectHideFlags: 0
@@ -282,7 +282,7 @@ GameObject:
   - component: {fileID: 4619836066175032590}
   - component: {fileID: 4687094321511375898}
   - component: {fileID: 1871131499723581682}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: handle_yz
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -399,7 +399,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1519673882667308328}
   - component: {fileID: 7700445897397042831}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: FreeMove
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -460,7 +460,7 @@ GameObject:
   - component: {fileID: 6798554223649500289}
   - component: {fileID: 8188267023837977259}
   - component: {fileID: 409142107198590084}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: handle_xy
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -636,8 +636,36 @@ PrefabInstance:
       value: SoundSourceSphere
       objectReference: {fileID: 0}
     - target: {fileID: 1414827459713216766, guid: 9c05423b81838e44a9544c49444add68, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 1414827459713216766, guid: 9c05423b81838e44a9544c49444add68, type: 3}
       propertyPath: m_IsActive
       value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5372997930642979134, guid: 9c05423b81838e44a9544c49444add68, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 8588804572892462161, guid: 9c05423b81838e44a9544c49444add68, type: 3}
+      propertyPath: m_Parameters.colorGradient.key0.b
+      value: 0.40392157
+      objectReference: {fileID: 0}
+    - target: {fileID: 8588804572892462161, guid: 9c05423b81838e44a9544c49444add68, type: 3}
+      propertyPath: m_Parameters.colorGradient.key0.g
+      value: 0.6611513
+      objectReference: {fileID: 0}
+    - target: {fileID: 8588804572892462161, guid: 9c05423b81838e44a9544c49444add68, type: 3}
+      propertyPath: m_Parameters.colorGradient.key0.r
+      value: 0.67058825
+      objectReference: {fileID: 0}
+    - target: {fileID: 8588804572892462161, guid: 9c05423b81838e44a9544c49444add68, type: 3}
+      propertyPath: m_Parameters.colorGradient.key1.b
+      value: 0.40392157
+      objectReference: {fileID: 0}
+    - target: {fileID: 8588804572892462161, guid: 9c05423b81838e44a9544c49444add68, type: 3}
+      propertyPath: m_Parameters.colorGradient.key1.g
+      value: 0.6269577
       objectReference: {fileID: 0}
     - target: {fileID: 8732042442584171229, guid: 9c05423b81838e44a9544c49444add68, type: 3}
       propertyPath: m_Enabled
@@ -687,6 +715,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Axis
       objectReference: {fileID: 0}
+    - target: {fileID: 565344219234904274, guid: 33170d352a8ef4943a50624761acd6d6, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
     - target: {fileID: 3540577646413656382, guid: 33170d352a8ef4943a50624761acd6d6, type: 3}
       propertyPath: m_LocalScale.x
       value: 227.6
@@ -723,6 +755,10 @@ PrefabInstance:
       propertyPath: m_ConstrainProportionsScale
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3552675690693973954, guid: 33170d352a8ef4943a50624761acd6d6, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
     - target: {fileID: 4181155865393007992, guid: 33170d352a8ef4943a50624761acd6d6, type: 3}
       propertyPath: m_LocalScale.x
       value: 227.6
@@ -742,6 +778,10 @@ PrefabInstance:
     - target: {fileID: 4181155865393007992, guid: 33170d352a8ef4943a50624761acd6d6, type: 3}
       propertyPath: m_ConstrainProportionsScale
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4209027477673929604, guid: 33170d352a8ef4943a50624761acd6d6, type: 3}
+      propertyPath: m_Layer
+      value: 6
       objectReference: {fileID: 0}
     - target: {fileID: 8116066209848446515, guid: 33170d352a8ef4943a50624761acd6d6, type: 3}
       propertyPath: m_LocalScale.x
@@ -806,6 +846,10 @@ PrefabInstance:
     - target: {fileID: 8587174373157183480, guid: 33170d352a8ef4943a50624761acd6d6, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8928913593204806793, guid: 33170d352a8ef4943a50624761acd6d6, type: 3}
+      propertyPath: m_Layer
+      value: 6
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

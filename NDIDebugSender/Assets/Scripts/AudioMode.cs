@@ -25,7 +25,7 @@ public class AudioMode : MonoBehaviour
         
         public AudioDropDownOption(SpeakerConfig config)
         {
-            this.mode = NdiSender.AudioMode.CustomSpeakerConfig;
+            this.mode = NdiSender.AudioMode.SpeakerConfigAsset;
             this.config = config;
             text = config.name;
         }
@@ -39,13 +39,20 @@ public class AudioMode : MonoBehaviour
     
     private List<TMP_Dropdown.OptionData> _options = new List<TMP_Dropdown.OptionData>();
     private int _lastModeIndex = 0;
+
+    public void ChangeToCustomConfig()
+    {
+        _ndiSender.audioMode = NdiSender.AudioMode.CustomVirtualAudioSetup;
+        var newIndex = (int)NdiSender.AudioMode.CustomVirtualAudioSetup;
+        _audioModeDropdown.SetValueWithoutNotify(newIndex);
+    }
     
     private void UpdateDropdown()
     {
         
         foreach (var mode in (NdiSender.AudioMode[]) System.Enum.GetValues(typeof(NdiSender.AudioMode)))
         {
-            if (mode != NdiSender.AudioMode.CustomSpeakerConfig)
+            if (mode != NdiSender.AudioMode.SpeakerConfigAsset)
                 _options.Add(new AudioDropDownOption(mode));
         }
         
@@ -83,7 +90,7 @@ public class AudioMode : MonoBehaviour
         Debug.Log("Changing audio mode to " + option.mode);
         
         _ndiSender.audioMode = option.mode;
-        if (option.mode == NdiSender.AudioMode.CustomSpeakerConfig)
+        if (option.mode == NdiSender.AudioMode.SpeakerConfigAsset)
         {
             _ndiSender.customSpeakerConfig = option.config;
         }

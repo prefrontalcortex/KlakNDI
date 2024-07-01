@@ -1,3 +1,4 @@
+using System;
 using Klak.Ndi;
 using TMPro;
 using UnityEngine;
@@ -71,6 +72,14 @@ public class OscSetup : MonoBehaviour
             _oscSender.GetHostIpAndPort(out string ip , out int port);
             _ip.text = ip;
             _port.text = port.ToString();
+        }
+    }
+
+    private void Update()
+    {
+        if (_oscSender && _enableToggle && _oscSender.enabled != _enableToggle.isOn)
+        {
+            _enableToggle.isOn = _oscSender.enabled;
         }
     }
 #endif

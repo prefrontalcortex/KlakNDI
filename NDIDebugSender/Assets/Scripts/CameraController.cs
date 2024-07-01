@@ -4,6 +4,10 @@ public class CameraController : MonoBehaviour
 {
     private void Update()
     {
+        // Abort when cursor is over UI
+        if (UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
+            return;
+        
         if (Input.GetMouseButton(2))
         {
             var x = Input.GetAxis("Mouse X");

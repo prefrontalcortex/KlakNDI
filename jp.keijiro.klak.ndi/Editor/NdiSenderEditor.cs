@@ -133,7 +133,7 @@ sealed class NdiSenderEditor : UnityEditor.Editor
                 }   
             }
 
-            if (audioModeEnum == NdiSender.AudioMode.CustomSpeakerConfig)
+            if (audioModeEnum == NdiSender.AudioMode.SpeakerConfigAsset)
             {
                 if (customSpeakerConfig.Target.objectReferenceValue == null)
                     GUI.color = Color.red;

@@ -1,7 +1,5 @@
-using System;
 using Klak.Ndi.Audio;
 using UnityEngine;
-using UnityEngine.Events;
 
 namespace Klak.Ndi {
 
@@ -17,14 +15,16 @@ public sealed partial class NdiSender : MonoBehaviour, IAdmDataProvider
         Virtual5Point1, 
         Virtual7Point1,
         Virtual32Array,
-        CustomSpeakerConfig,
-        ObjectBased
+        SpeakerConfigAsset,
+        ObjectBased,
+        CustomVirtualAudioSetup
     }
     
     [SerializeField] string _ndiName = "NDI Sender";
     string _ndiNameRuntime;
+    public bool playCenteredAudioSourcesOnAllSpeakers = true;
     public AudioMode audioMode = AudioMode.AudioListener;
-    public float virtualListenerDistance = 10;
+    public float virtualListenerDistance = 4;
     public bool useCameraPositionForVirtualAttenuation = false;
     public int maxObjectBasedChannels = 32;
     public SpeakerConfig customSpeakerConfig;

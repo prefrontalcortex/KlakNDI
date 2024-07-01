@@ -118,18 +118,26 @@ namespace Klak.Ndi
                 _settings = settings;
         }
 
-        private void SendPosition(Vector3 pos, int id)
+        private void SendPosition_Cartesian(Vector3 pos, int id)
         {
+            string strId = id.ToString();
             pos = pos.normalized * Mathf.Max(0.001f,
                 Mathf.InverseLerp(_settings.nearDistance, _settings.farDistance, pos.magnitude));
-            _client.Send($"/adm/obj/{id.ToString()}/xyz", pos.x, pos.z, pos.y);
-            _client.Send($"/adm/obj/{id.ToString()}/x", pos.x);
-            _client.Send($"/adm/obj/{id.ToString()}/y", pos.y);
-            _client.Send($"/adm/obj/{id.ToString()}/z", pos.z);
+            _client.Send($"/adm/obj/{strId}/xyz", pos.x, pos.z, pos.y);
+            _client.Send($"/adm/obj/{strId}/x", pos.x);
+            _client.Send($"/adm/obj/{strId}/y", pos.y);
+            _client.Send($"/adm/obj/{strId}/z", pos.z);
+        }
+
+        private void SendDistanceMax(int id)
+        {
+            string strId = id.ToString();
+            _client.Send($"/adm/config/obj/{strId}/dMax", _settings.farDistance);
         }
 
         private void SendPosition_Spherical(Vector3 pos, int id)
         {
+            string strId = id.ToString();
             float azim = 0;
             float elev = 0;
             // Calculate azimuth and elevation
@@ -138,14 +146,18 @@ namespace Klak.Ndi
                 azim = Mathf.Atan2(pos.x, pos.z) * Mathf.Rad2Deg;
                 elev = Mathf.Atan2(pos.y, Mathf.Sqrt(pos.x * pos.x + pos.z * pos.z)) * Mathf.Rad2Deg;
             }
-
+            
             float dist = Mathf.Max(0.001f,
                 Mathf.InverseLerp(_settings.nearDistance, _settings.farDistance, pos.magnitude));
-            _client.Send($"/adm/obj/{id.ToString()}/azim", azim);
-            _client.Send($"/adm/obj/{id.ToString()}/elev", elev);
-            _client.Send($"/adm/obj/{id.ToString()}/dist", dist);
+            _client.Send($"/adm/obj/{strId}/azim", azim);
+            _client.Send($"/adm/obj/{strId}/elev", elev);
+            _client.Send($"/adm/obj/{strId}/dist", dist);
         }
 
+        private void SendCartesianConfig(bool cartesianActive, int id)
+        {
+            _client.Send($"/adm/config/obj/{id.ToString()}/cartesian", cartesianActive ? 1 : 0);
+        }
         private void SendGain(float gain, int id)
         {
             _client.Send($"/adm/obj/{id.ToString()}/gain", gain);
@@ -161,8 +173,10 @@ namespace Klak.Ndi
                 int id = 1;
                 foreach (var pos in data.positions)
                 {
-                    SendPosition(pos, id);
+                    SendCartesianConfig(true, id);
+                    SendPosition_Cartesian(pos, id);
                     SendPosition_Spherical(pos, id);
+                    SendDistanceMax(id);
                     id++;
                 }
 
@@ -201,6 +215,40 @@ namespace Klak.Ndi
             }
         }
 
+        public void SendCmd(string cmd)
+        {
+            _client.Send(cmd);
+        }
+
+        public void SendCmd(string cmd, int[] para)
+        {
+            if (para.Length == 0)
+                _client.Send(cmd);
+            else if (para.Length == 1)
+                _client.Send(cmd, para[0]);
+            else if (para.Length == 2)
+                _client.Send(cmd, para[0], para[1]);
+            else
+            {
+                Debug.LogError("Can't send OSC command. Max supported para length for ints is 2. Current= "+para.Length); 
+            }
+        }
+
+        public void SendCmd(string cmd, float[] para)
+        {
+            if (para.Length == 0)
+                _client.Send(cmd);
+            else if (para.Length == 1)
+                _client.Send(cmd, para[0]);
+            else if (para.Length == 2)
+                _client.Send(cmd, para[0], para[1]);
+            else
+            {
+                Debug.LogError("Can't send OSC command. Max supported para length for floats is 2. Current= "+para.Length); 
+            }
+        }
+
+        
         public void ChangeHostIpAndPort(string ipText, int port)
         {
             if (!_customConnection)
@@ -210,6 +258,9 @@ namespace Klak.Ndi
 
             _customConnection.host = ipText;
             _customConnection.port = port;
+            if (!enabled)
+                return;
+            
             lock (_lock)
             {
                 if (_client != null)

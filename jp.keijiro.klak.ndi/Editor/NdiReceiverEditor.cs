@@ -29,6 +29,7 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
     #pragma warning restore
     private bool _foldOutChannelIncome = true;
     private bool _foldOutReceivedSpeakerSetup = true;
+    private bool _foldOutBufferStats = false;
 
     // NDI name dropdown
     void ShowNdiNameDropdown(Rect rect)
@@ -160,6 +161,24 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
                 EditorGUILayout.EndFoldoutHeaderGroup();
             }
 
+            var bufferStat = ndiReceiver.GetBufferStatistics();
+            _foldOutBufferStats = EditorGUILayout.BeginFoldoutHeaderGroup(_foldOutBufferStats, "Buffer Statistics");
+            if (_foldOutBufferStats)
+            {
+                EditorGUILayout.BeginVertical(GUI.skin.window);
+                GUILayout.Space(-20);
+                GUILayout.Label("Audio Buffer length: " + bufferStat.audioBufferTimeLength);
+                GUILayout.Label(bufferStat.discardedAudioFrames + " audio frames discarded (Overrun)");
+                GUILayout.Label("Last Received Frame");
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Audio: "+bufferStat.lastReceivedAudioFrameTime);
+                GUILayout.Label("Video: "+bufferStat.lastReceivedVideoFrameTime);
+                GUILayout.EndHorizontal();
+                
+                EditorGUILayout.EndHorizontal();
+            }
+            EditorGUILayout.EndFoldoutHeaderGroup();
+            
             var recvSpeakerSetup = ndiReceiver.GetReceivedSpeakerPositions();
             if (recvSpeakerSetup != null)
             {
@@ -180,8 +199,8 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
                     }
 
                     EditorGUILayout.EndHorizontal();
-                    EditorGUILayout.EndFoldoutHeaderGroup();
                 }
+                EditorGUILayout.EndFoldoutHeaderGroup();
             }
         }
         else

@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 1
   m_AmbientMode: 1
   m_SubtractiveShadowColor: {r: 0.5849056, g: 0.5849056, b: 0.5849056, a: 1}
-  m_SkyboxMaterial: {fileID: 0}
+  m_SkyboxMaterial: {fileID: 2100000, guid: 38fc99861f2aa214495a91d41c9d61b4, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
-  m_IndirectSpecularColor: {r: 0, g: 0, b: 0, a: 1}
+  m_IndirectSpecularColor: {r: 0.698168, g: 0.6241131, b: 1.3533953, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -435,7 +435,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: ADM OSC Setup
+  m_text: ADM-OSC Setup
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -1215,6 +1215,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _ndiName: 
+  _bandwidth: 100
   _targetTexture: {fileID: 8400000, guid: 3cfc98987316f70409adbc388705a83d, type: 2}
   _targetRenderer: {fileID: 0}
   _targetMaterialProperty: 
@@ -1250,10 +1251,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fe7015dc3f594d04984002f650a16bc8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _connection: {fileID: 11400000, guid: 9c5213c01d87c7247b8dc5be384e5458, type: 2}
   _settings:
     nearDistance: 0.1
     farDistance: 10
+  _connection: {fileID: 11400000, guid: 9c5213c01d87c7247b8dc5be384e5458, type: 2}
 --- !u!1 &1641154208
 GameObject:
   m_ObjectHideFlags: 0
