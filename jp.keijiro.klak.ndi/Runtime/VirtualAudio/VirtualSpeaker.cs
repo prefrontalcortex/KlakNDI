@@ -27,6 +27,7 @@ namespace Klak.Ndi.Audio
 				speakerAudio.spatialBlend = 1f;
 				speakerAudio.minDistance = 5f;
 				speakerAudio.rolloffMode = AudioRolloffMode.Logarithmic;
+				speakerAudio.spread = 0;	
 			}
 			else
 			{
@@ -34,6 +35,7 @@ namespace Klak.Ndi.Audio
 				speakerAudio.SetCustomCurve( AudioSourceCurveType.CustomRolloff, AnimationCurve.Linear(0, 1, 1, 1) );
 				speakerAudio.maxDistance = 500;
 				speakerAudio.spatialBlend = 1f;
+				speakerAudio.spread = 90;	
 			}
 		}
 		

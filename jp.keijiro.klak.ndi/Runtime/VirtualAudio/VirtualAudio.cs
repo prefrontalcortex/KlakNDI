@@ -5,7 +5,6 @@ using System.Runtime.InteropServices;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Events;
 using Debug = UnityEngine.Debug;
@@ -43,7 +42,10 @@ namespace Klak.Ndi.Audio
             internal void CheckWeightsArray(int count)
             {
                 if (currentWeights == null || currentWeights.Length != count)
+                {
                     currentWeights = new float[count];
+                    Array.Fill(currentWeights, 0);
+                }
             }
             
             internal void UpdateSmoothingWeights()
@@ -64,7 +66,6 @@ namespace Klak.Ndi.Audio
                         smoothedWeights[i] = 0f;
                 }
             }
-            
         }
 
         internal class ListenerData
@@ -105,7 +106,7 @@ namespace Klak.Ndi.Audio
             }
         }
         
-        internal static bool UseVirtualAudio
+        public static bool UseVirtualAudio
         {
             get => _useVirtualAudio;
             set
@@ -115,7 +116,7 @@ namespace Klak.Ndi.Audio
             }
         }
 
-        internal static bool PlayCenteredAudioSourceOnAllListeners
+        public static bool PlayCenteredAudioSourceOnAllListeners
         {
             get => _centeredAudioSourceOnAllListeners;
             set => _centeredAudioSourceOnAllListeners = value;
@@ -140,6 +141,8 @@ namespace Klak.Ndi.Audio
         private static readonly object _listenerDataLockObject = new object();
         
         private static NativeArray<float> _audioSendStream;
+
+        public static bool MuteAudioOutput = false;
         
         private static AudioSourceData _testAudioData = new AudioSourceData();
         private static readonly object _testAudioLockObj = new object();
@@ -159,6 +162,11 @@ namespace Klak.Ndi.Audio
         
         private static bool _objectBasedAudio = false;
         private static int _maxObjectBasedChannels = 16;
+
+        public static int MaxObjectBasedChannels
+        {
+            get => _maxObjectBasedChannels;
+        }
         
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Init()
@@ -181,6 +189,11 @@ namespace Klak.Ndi.Audio
             }
         }
         
+        public static void SetMaxObjectBasedChannels(int count)
+        {
+            _maxObjectBasedChannels = count;
+        }
+        
         public static void ActivateObjectBasedAudio(bool objectBased, int channelCount = 16)
         {
             _objectBasedAudio = objectBased;
@@ -188,8 +201,31 @@ namespace Klak.Ndi.Audio
             {
                 _maxObjectBasedChannels = channelCount;
             }
-        }   
+        }
 
+        public static void UpdateListenerPosition(int channel, Vector3 newPosition)
+        {
+            lock (_listenerLockObject)
+            {
+                if (channel < 0 || channel >= _virtualListeners.Count)
+                    return;
+                _virtualListeners[channel].position = newPosition;
+                _virtualListenersChanged = true;
+            }
+        }
+
+        public static void UpdateListenerVolume(int channel, float volume)
+        {
+            lock (_listenerLockObject)
+            {
+                if (channel < 0 || channel >= _virtualListeners.Count)
+                    return;
+                _virtualListeners[channel].volume = volume;
+                _virtualListenersChanged = true;
+            }
+        }
+
+        
         public static void SetAudioTestChannel(int channel)
         {
             lock (_testAudioLockObj)
@@ -204,7 +240,7 @@ namespace Klak.Ndi.Audio
                 _audioSendStream.Dispose();
         }
 
-        internal static void ClearAllVirtualSpeakerListeners()
+        public static void ClearAllVirtualSpeakerListeners()
         {
             lock (_listenerDataLockObject)
             {
@@ -225,6 +261,17 @@ namespace Klak.Ndi.Audio
                 return _virtualListeners.Select( l => l.position).ToArray();
             }
         }
+
+        public static void SetListenerVolume(int channelIndex, float volume)
+        {
+            lock (_listenerLockObject)
+            {
+                if (channelIndex < 0 || channelIndex >= _virtualListeners.Count)
+                    return;
+                _virtualListeners[channelIndex].volume = volume;
+                _virtualListenersChanged = true;
+            }
+        }
         
         public static float[] GetListenersVolume()
         {
@@ -234,7 +281,7 @@ namespace Klak.Ndi.Audio
             }
         }
 
-        internal static void AddListener(Vector3 relativePosition, float volume = 1f)
+        public static void AddListener(Vector3 relativePosition, float volume = 1f)
         {
             var newData = new VirtualListener
             {
@@ -254,11 +301,30 @@ namespace Klak.Ndi.Audio
             }
         }
 
-        internal static AudioSourceData RegisterAudioSourceChannel()
+        public static void RemoveListener(int index)
+        {
+            lock (_listenerLockObject)
+            {
+                if (index < 0 || index >= _virtualListeners.Count)
+                    return;
+                _virtualListeners.RemoveAt(index);
+                _virtualListenersChanged = true;
+            }
+
+            lock (_listenerDataLockObject)
+            {
+                if (index < 0 || index >= _listenerDatas.Count)
+                    return;
+                _listenerDatas.RemoveAt(index);
+            }
+        }
+
+        internal static AudioSourceData RegisterAudioSourceChannel(AudioSourceSettings settings)
         {
             var newData = new AudioSourceData
             {
-                id = _audioSourceNextId++
+                id = _audioSourceNextId++,
+                settings = settings
             };
 
             lock (_audioSourceLockObject)
@@ -453,12 +519,18 @@ namespace Klak.Ndi.Audio
         public static void SetAudioDataFromSource(int id, float[] data, int channelCount)
         {
             if (!_useVirtualAudio)
+            {
+                if (VirtualAudio.MuteAudioOutput)
+                    Array.Fill(data, 0f);
                 return;
+            }
             
             lock (_audioSourceLockObject)
             {
                 if (!_audioSourcesData.TryGetValue(id, out var audioSourceData))
                 {
+                    if (VirtualAudio.MuteAudioOutput)
+                        Array.Fill(data, 0f);
                     return;
                 }
                 
@@ -516,6 +588,8 @@ namespace Klak.Ndi.Audio
                     UnsafeUtility.ReleaseGCObject(handle);
                 }
             }
+            if (VirtualAudio.MuteAudioOutput)
+                Array.Fill(data, 0f);
         }
         
 #region Test Sound
@@ -677,15 +751,15 @@ namespace Klak.Ndi.Audio
                     if (_allListenersAreOnSameHeight)
                     {
                         // Using simple azimuth based panning
-                        CalculateWeightsBasedOnSimplePlanarAzimuthPanning(audioSource.currentWeights, audioSourceSettings, blendToCenter);
+                        CalculateWeightsBasedOnSimplePlanarAzimuthPanning(audioSource.currentWeights, audioSourceSettings, blendToCenter, spatialBlend);
                     }
                     else
                     {
-                        // TODO: height panning
+                        // TODO: height panning !! Currently we ignore the height of the listeners
+                        CalculateWeightsBasedOnSimplePlanarAzimuthPanning(audioSource.currentWeights, audioSourceSettings, blendToCenter, spatialBlend);
                     } 
      
                     ApplyDistanceAttenuationAndSourceVolumeToWeights();
-                    ApplySpatialBlendToWeights(audioSource.currentWeights, spatialBlend);
                 }
             }
         }
@@ -800,7 +874,7 @@ namespace Klak.Ndi.Audio
             }
         }
         
-        private static void CalculateWeightsBasedOnSimplePlanarAzimuthPanning(float[] weights, AudioSourceSettings audioSourceSettings, float centerBlend)
+        private static void CalculateWeightsBasedOnSimplePlanarAzimuthPanning(float[] weights, AudioSourceSettings audioSourceSettings, float centerBlend, float spatialBlend)
         {
             BurstMethods.GetSphericalCoordinates(out var spherical, audioSourceSettings.position);
             // Find the left and right listeners from the audioSource by the angle 
@@ -829,6 +903,9 @@ namespace Klak.Ndi.Audio
                 }
                 
                 w = Mathf.Lerp(w, 1f / activeListeners, centerBlend);
+                
+                w = Mathf.Lerp(w, 1f, 1f - spatialBlend);
+                w *= _virtualListeners[i].volume;
                 
                 if (w > 0f)
                     sum += (w * w);
@@ -931,6 +1008,16 @@ namespace Klak.Ndi.Audio
 
         private static void ApplySpatialBlendToWeights(float[] weights, float spatialBlend)
         {
+            var w = new float[weights.Length];
+            Array.Fill(w, 0);
+            float sum = 0;
+            for (int i = 0; i < weights.Length; i++)
+            {
+                w[i] = _virtualListeners[i].volume * weights[i];
+                sum += 0;
+            }
+            
+            
             for (int i = 0; i < weights.Length; i++)
             {
                 float weight = weights[i];
@@ -939,5 +1026,6 @@ namespace Klak.Ndi.Audio
             }
         }
 #endregion
+
     }
 }

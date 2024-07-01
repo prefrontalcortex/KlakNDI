@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Klak.Ndi.Audio;
 using TMPro;
 using UnityEngine;
 
@@ -27,7 +28,8 @@ public class AudioDeviceInformations : MonoBehaviour
             if (mode == config.speakerMode)
                 currentSpeakerModeSelection = options.Count - 1;
         }
-        
+        options.Add(new TMP_Dropdown.OptionData("Mute"));
+
         AddOption(AudioSpeakerMode.Mono);
         AddOption(AudioSpeakerMode.Stereo);
         AddOption(AudioSpeakerMode.Quad);
@@ -58,6 +60,12 @@ public class AudioDeviceInformations : MonoBehaviour
     {
         _speakerModeSelection.onValueChanged.AddListener(index =>
         {
+            if (index == 0)
+            {
+                VirtualAudio.MuteAudioOutput = true;
+                return;
+            }
+            VirtualAudio.MuteAudioOutput = false;
             var config = AudioSettings.GetConfiguration();
             if (AudioSpeakerMode.TryParse(_speakerModeSelection.options[index].text, out AudioSpeakerMode mode))
             {

@@ -1,5 +1,7 @@
 using System;
 using UnityEngine;
+using UnityEngine.Events;
+using UnityEngine.Serialization;
 
 [RequireComponent(typeof(Collider))]
 public class Drag : MonoBehaviour
@@ -9,6 +11,8 @@ public class Drag : MonoBehaviour
     public AxisOption axis = AxisOption.CameraForwad;
     private Plane _plane;
     private Vector3 _offset;
+    
+    [FormerlySerializedAs("OnMouseIsOverChanged")] public UnityEvent<bool> onMouseIsOverChanged;
 
     private Camera mainCamera;
 
@@ -22,11 +26,13 @@ public class Drag : MonoBehaviour
     private void OnMouseEnter()
     {
         transform.localScale = _initialScale * 1.5f;
+        onMouseIsOverChanged.Invoke(true);
     }
     
     private void OnMouseExit()
     {
         transform.localScale = _initialScale;
+        onMouseIsOverChanged.Invoke(false);
     }
 
     private void OnMouseDown()

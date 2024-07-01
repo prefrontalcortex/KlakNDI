@@ -43,7 +43,7 @@ public class VirtualListenerVisualisation : MonoBehaviour
             _speakers[i].gameObject.SetActive(i < listenersPositions.Length);
         
         for (int i = 0; i < listenersPositions.Length; i++)
-            _speakers[i].SetPositionAndRotation(listenersPositions[i], listenersPositions[i] == Vector3.zero ? Quaternion.identity : Quaternion.LookRotation(-listenersPositions[i].normalized));
+            _speakers[i].SetPositionAndRotation(listenersPositions[i], listenersPositions[i] == Vector3.zero ? Quaternion.LookRotation(Vector3.back) : Quaternion.LookRotation(-listenersPositions[i].normalized));
 
         var speakerLevel = _ndiSender.GetChannelVisualisations();
         if (speakerLevel == null)
