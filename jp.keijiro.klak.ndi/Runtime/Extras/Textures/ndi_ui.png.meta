@@ -357,7 +357,7 @@ TextureImporter:
         width: 111
         height: 122
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
@@ -365,6 +365,48 @@ TextureImporter:
       bones: []
       spriteID: fd95767bbe551c147a78eda85d06750d
       internalID: 1782472230
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: ndi_ui_mirrorx
+      rect:
+        serializedVersion: 2
+        x: 519
+        y: 182
+        width: 111
+        height: 122
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: fe97397554f85a14c8e81be908269199
+      internalID: 272170042
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: ndi_ui_mirrory
+      rect:
+        serializedVersion: 2
+        x: 664
+        y: 182
+        width: 111
+        height: 122
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 0a4a3a440a6662243a02fe892e713c7c
+      internalID: -1678816859
       vertices: []
       indices: 
       edges: []
@@ -387,6 +429,8 @@ TextureImporter:
       ndi_ui_dot: -1424603237
       ndi_ui_dragpoints: 366450831
       ndi_ui_field: 2080224435
+      ndi_ui_mirrorx: 272170042
+      ndi_ui_mirrory: -1678816859
       ndi_ui_panel: -228062234
       ndi_ui_reorder: 2063970329
       ndi_ui_reverse: 348685466
