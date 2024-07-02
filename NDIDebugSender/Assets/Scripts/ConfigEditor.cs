@@ -102,7 +102,7 @@ public class ConfigEditor : MonoBehaviour
                 continue;
 
             selectedi++;
-            var angle = start + (end - start) * selectedi / (selectedCount - 1);
+            var angle = start + (end - start) * selectedi / selectedCount;
             var pos = new Vector3(Mathf.Sin(angle * Mathf.Deg2Rad) * radius, 0, Mathf.Cos(angle * Mathf.Deg2Rad) * radius);
             _tempPosition[i] = pos;
             VirtualAudio.UpdateListenerPosition(i, pos);
@@ -176,6 +176,46 @@ public class ConfigEditor : MonoBehaviour
         _snapPosition = active;
         foreach (var listenerMover in _listenerMovers)
             listenerMover.snapPosition = active;
+    }
+    
+    public void MirrorXAxis()
+    {
+        var positions = VirtualAudio.GetListenersPositions();
+        if (positions == null)
+            return;
+
+        for (int i = 0; i < positions.Length; i++)
+        {
+            if (!_listenerUIs[i].selected.isOn)
+                continue;
+            var pos = positions[i];
+            pos.x = -pos.x;
+            VirtualAudio.UpdateListenerPosition(i, pos);
+            _listenerMovers[i].UpdatePosition(pos);
+            _listenerUIs[i].UpdatePosition(pos);
+        }
+        UpdateAnySelected();
+        ConfigChanged();
+    }
+
+    public void MirrorZAxis()
+    {
+        var positions = VirtualAudio.GetListenersPositions();
+        if (positions == null)
+            return;
+
+        for (int i = 0; i < positions.Length; i++)
+        {
+            if (!_listenerUIs[i].selected.isOn)
+                continue;
+            var pos = positions[i];
+            pos.z = -pos.z;
+            VirtualAudio.UpdateListenerPosition(i, pos);
+            _listenerMovers[i].UpdatePosition(pos);
+            _listenerUIs[i].UpdatePosition(pos);
+        }
+        UpdateAnySelected();
+        ConfigChanged();        
     }
 
     public void RotateAll(float degree)
