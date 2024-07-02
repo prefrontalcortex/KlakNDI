@@ -12,7 +12,15 @@ namespace Klak.Ndi.Audio
         [SerializeField] private AdmOscSender _admOsc;
 #endif
 
+        [Header("Auto Load from File")]
         [SerializeField] private bool _autoConfigLoad = false;
+        public enum SourceType
+        {
+            StreamingAssets,
+            Resources,
+            FileSystem,
+        }
+        public SourceType sourceType = SourceType.Resources;
         public string autoConfigFilePath = "config.asc";
         private DateTime _lastAutoConfigFileModifyTime;
         
@@ -55,15 +63,29 @@ namespace Klak.Ndi.Audio
                     return;
                 }
 
-                if (File.Exists(autoConfigFilePath))
+                switch (sourceType)
+                {
+                    case SourceType.StreamingAssets:
+                        autoConfigFilePath = Path.Combine(Application.streamingAssetsPath, autoConfigFilePath);
+                        break;
+                    case SourceType.Resources:
+                        var json =  Resources.Load<TextAsset>(autoConfigFilePath).text;
+                        LoadConfigFromJson(json);
+                        return; 
+                }
+                
+                if (sourceType != SourceType.Resources && !File.Exists(autoConfigFilePath))
                 {
                     Debug.LogError("Config file not existing. Path="+autoConfigFilePath);
                     return;
                 }
 
-                _lastAutoConfigFileModifyTime = File.GetLastWriteTime(autoConfigFilePath);
                 LoadConfigFromFile(autoConfigFilePath);
-                StartCoroutine(CheckForConfigFileChanges());
+                if (sourceType != SourceType.Resources)
+                {
+                    _lastAutoConfigFileModifyTime = File.GetLastWriteTime(autoConfigFilePath);
+                    StartCoroutine(CheckForConfigFileChanges());
+                }
             }
         }
         
@@ -80,6 +102,11 @@ namespace Klak.Ndi.Audio
         public void LoadConfigFromFile(string path)
         {
             var json = System.IO.File.ReadAllText(path);
+            LoadConfigFromJson(json);
+        }
+
+        public void LoadConfigFromJson(string json)
+        {
             var loadedConfig = VirtualAudioSetupConfig.FromJson(json);
             LoadConfig(loadedConfig);
         }
