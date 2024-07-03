@@ -1139,6 +1139,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			_receivedAudioSampleRate = audio.SampleRate;
 		}
 
+		if (audio.Metadata == null && _usingVirtualSpeakers)
+			settingsChanged = true;
+
 		if((_usingVirtualSpeakers && audio.NoChannels != _virtualSpeakersCount) || _receivedAudioChannels != audio.NoChannels)
 		{
 			settingsChanged = true;

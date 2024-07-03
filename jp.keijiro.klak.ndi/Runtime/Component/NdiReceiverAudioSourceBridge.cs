@@ -34,20 +34,19 @@ namespace Klak.Ndi
 				_audioSource = GetComponent<AudioSource>();
 			if (isVirtualSpeaker && !_audioSource.spatialize)
 			{
+				var dspBufferSize = AudioSettings.GetConfiguration().dspBufferSize;
 			
-				if (!_spatilizeHelperClip)
+				if (!_spatilizeHelperClip || _spatilizeHelperClip.channels == 0 || _spatilizeHelperClip.samples != dspBufferSize)
 				{
+					if (_spatilizeHelperClip)
+						Destroy(_spatilizeHelperClip);
+					
 					var sampleRate = AudioSettings.GetConfiguration().sampleRate;
-					var dspBufferSize = AudioSettings.GetConfiguration().dspBufferSize;
 					_spatilizeHelperClip = AudioClip.Create("dummy", dspBufferSize, 1, sampleRate, false);
 					_spatializedData = new float[dspBufferSize];
 					Array.Fill(_spatializedData, 1f);
-					for(int i = 0; i < _spatializedData.Length; i++)
-					{
-						_spatializedData[i] = 1;
-					}
+			
 					_spatilizeHelperClip.SetData(_spatializedData, 0);
-					//_isSpatialized = true;
 				}
 				
 				_audioSource.loop = true;
