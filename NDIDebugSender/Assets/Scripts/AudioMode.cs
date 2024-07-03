@@ -49,17 +49,21 @@ public class AudioMode : MonoBehaviour
     
     private void UpdateDropdown()
     {
+        _options.Add(new AudioDropDownOption(NdiSender.AudioMode.AudioListener));
+        _options.Add(new AudioDropDownOption(NdiSender.AudioMode.VirtualQuad));
+        _options.Add(new AudioDropDownOption(NdiSender.AudioMode.Virtual5Point1));
+        _options.Add(new AudioDropDownOption(NdiSender.AudioMode.Virtual7Point1));
+        _options.Add(new AudioDropDownOption(NdiSender.AudioMode.Virtual32Array));
+        _options.Add(new AudioDropDownOption(NdiSender.AudioMode.ObjectBased));
+        _options.Add(new AudioDropDownOption(NdiSender.AudioMode.CustomVirtualAudioSetup));
         
-        foreach (var mode in (NdiSender.AudioMode[]) System.Enum.GetValues(typeof(NdiSender.AudioMode)))
+        if (_customSpeakerConfigs.Length > 0)
         {
-            if (mode != NdiSender.AudioMode.SpeakerConfigAsset)
-                _options.Add(new AudioDropDownOption(mode));
-        }
-        
-        _options.Add(new AudioDropDownOption( "-- Custom Config ---"));
-        foreach (var config in _customSpeakerConfigs)
-        {
-            _options.Add(new AudioDropDownOption(config));
+            _options.Add(new AudioDropDownOption( "-- Custom Config ---"));
+            foreach (var config in _customSpeakerConfigs)
+            {
+                _options.Add(new AudioDropDownOption(config));
+            }
         }
         
         _audioModeDropdown.options = _options;
@@ -76,7 +80,7 @@ public class AudioMode : MonoBehaviour
     {
         if (index == -1) return;
         if (index == _lastModeIndex) return;
-        
+        _lastModeIndex = index;
         var option = _audioModeDropdown.options[index] as AudioDropDownOption;
         if (option == null) return;
         if (option.onlyText)
