@@ -169,13 +169,11 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
                 GUILayout.Space(-20);
                 GUILayout.Label("Audio Buffer length: " + bufferStat.audioBufferTimeLength);
                 GUILayout.Label(bufferStat.discardedAudioFrames + " audio frames discarded (Overrun)");
+                GUILayout.Label(bufferStat.audioBufferUnderrun + " audio frames missing (Underrun)");
                 GUILayout.Label("Last Received Frame");
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("Audio: "+bufferStat.lastReceivedAudioFrameTime);
-                GUILayout.Label("Video: "+bufferStat.lastReceivedVideoFrameTime);
-                GUILayout.EndHorizontal();
-                
-                EditorGUILayout.EndHorizontal();
+                GUILayout.Label("Audio: "+bufferStat.lastReceivedAudioFrameTime.ToString("F"));
+                GUILayout.Label("Video: "+bufferStat.lastReceivedVideoFrameTime.ToString("F"));
+                EditorGUILayout.EndVertical();
             }
             EditorGUILayout.EndFoldoutHeaderGroup();
             
