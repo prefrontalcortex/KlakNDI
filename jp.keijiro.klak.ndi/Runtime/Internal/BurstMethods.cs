@@ -75,11 +75,19 @@ namespace Klak.Ndi
             }
             
             [BurstCompile]
+            public static unsafe void InterleavedToPlanar(float* interleavedData, float* destData, int channels, int length)
+            {
+                for (int c = 0; c < channels; c++)
+                    for (int i = 0; i < length; i++)
+                        destData[length * c + i] = interleavedData[i * channels + c];
+            }
+            
+            [BurstCompile]
             public static unsafe void PlanarToInterleaved(float* planarData, int planarOffset, float* destData, int destOffset, int channels, int length)
             {
                 for (int i = 0; i < length; i++)
                     for (int c = 0; c < channels; c++)
-                        destData[destOffset + (i * channels + c)] = planarData[planarOffset + (i * channels + c)];
+                        destData[destOffset + (i * channels + c)] = planarData[planarOffset + (length * c + i)];
             }
             
             [BurstCompile]
@@ -89,7 +97,7 @@ namespace Klak.Ndi
    
                 for (int i = 0; i < length; i++)
                     for (int c = 0; c < channels; c++)
-                        destData[destOffset + (i * destChannels + c)] = planarData[planarOffset + (i * planarChannels + c)];
+                        destData[destOffset + (i * destChannels + c)] = planarData[planarOffset + (length * c + i)];
             }
             
             [BurstCompile]
