@@ -412,15 +412,15 @@ public sealed partial class NdiSender : MonoBehaviour
             {
                 System.Array.Resize<float>(ref samples, numSamples * numChannels);
             }
+            
+            var dataPtr = UnsafeUtility.PinGCArrayAndGetDataAddress(data, out var handleData);
+            var samplesPtr = UnsafeUtility.PinGCArrayAndGetDataAddress(samples, out var handleSamples);
+            
+            BurstMethods.InterleavedToPlanar((float*)dataPtr, (float*)samplesPtr, numChannels, numSamples);
 
-            for (int ch = 0; ch < numChannels; ch++)
-            {
-                for (int i = 0; i < numSamples; i++)
-                {
-                    samples[numSamples * ch + i] = data[i * numChannels + ch];
-                }
-            }
-
+            UnsafeUtility.ReleaseGCObject(handleData);
+            UnsafeUtility.ReleaseGCObject(handleSamples);
+            
             fixed (float* p = samples)
             {
                 //PluginEntry.SetAudioData(_plugin, (IntPtr)p);
