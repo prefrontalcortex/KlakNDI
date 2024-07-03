@@ -13,8 +13,7 @@ public class VirtualListenerVisualisation : MonoBehaviour
     private void UpdateSpeakers()
     {
         var listenersPositions = VirtualAudio.GetListenersPositions();
-        var listenersVolume = VirtualAudio.GetListenersVolume();
-        
+
         if (listenersPositions == null)
         {
             for (int i = 0; i < _speakers.Count; i++)
