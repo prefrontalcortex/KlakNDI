@@ -207,13 +207,13 @@ sealed class NdiSenderEditor : UnityEditor.Editor
         }
         
         var ndiSender = target as NdiSender;
-        if (Application.isPlaying)
+        if (Application.isPlaying && VirtualAudio.UseVirtualAudio)
         {
             var channels = ndiSender.GetChannelVisualisations();
 
             var vol = VirtualAudio.GetListenersVolume();
             var channelPos = ndiSender.GetChannelObjectPositions();
-            if (channels != null)
+            if (channels != null && vol != null)
             {
                 ChannelMeter.Draw(channels, (int channelNo) =>
                 {
