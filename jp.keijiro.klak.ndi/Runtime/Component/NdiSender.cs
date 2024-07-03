@@ -273,7 +273,7 @@ public sealed partial class NdiSender : MonoBehaviour
                 lock (_channelVisualisationsLock)
                     if (_channelVisualisations != null)
                         Array.Fill(_channelVisualisations, 0f);
-                
+                SendChannels(stream, samplesCount, _objectBasedChannels.Count, true);
                 return;
             }
 
