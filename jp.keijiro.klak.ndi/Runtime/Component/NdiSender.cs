@@ -581,6 +581,8 @@ public sealed partial class NdiSender : MonoBehaviour
         switch (audioMode)
         {
             case AudioMode.AudioListener:
+                lock (_channelVisualisationsLock)
+                    _channelVisualisations = null;
                 break;
             case AudioMode.VirtualQuad:
                 CreateAudioSetup_Quad();
