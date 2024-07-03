@@ -789,7 +789,7 @@ namespace Klak.Ndi.Audio
                 CheckSetup();
                 stream = _audioSendStream;
                 
-                if (_virtualListeners.Count == 0 || _audioSourcesData.Count == 0)
+                if (_virtualListeners.Count == 0)
                 {
                     vus = new float[_listenerDatas.Count];
                     return result;
