@@ -112,6 +112,10 @@ namespace Klak.Ndi.Audio
             set
             {
                 _useVirtualAudio = value;
+                if (!value)
+                {
+                    ClearAllVirtualSpeakerListeners();
+                }
                 OnVirtualAudioStateChanged.Invoke(_useVirtualAudio);
             }
         }
@@ -258,6 +262,8 @@ namespace Klak.Ndi.Audio
         {
             lock (_listenerLockObject)
             {
+                if (!_useVirtualAudio)
+                    return null;
                 return _virtualListeners.Select( l => l.position).ToArray();
             }
         }
@@ -277,6 +283,9 @@ namespace Klak.Ndi.Audio
         {
             lock (_listenerLockObject)
             {
+                if (!_useVirtualAudio)
+                    return null;
+                
                 return _virtualListeners.Select( l => l.volume).ToArray();
             }
         }
