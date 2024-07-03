@@ -173,6 +173,7 @@ public class ConfigEditor : MonoBehaviour
             _listenerMovers[i].UpdatePosition(_tempPosition[i]);
         }
         _tempPosition = null;
+        _orgPositions = null;
         ConfigChanged();
     }
     
