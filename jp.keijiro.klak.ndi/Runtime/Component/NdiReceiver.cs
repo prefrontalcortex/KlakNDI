@@ -122,7 +122,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	    public double lastReceivedVideoFrameTime;
 	    public double lastReceivedAudioFrameTime;
 	    public float audioBufferTimeLength;
-	    
+	    public int audioBufferUnderrun;
 	    public int discardedAudioFrames;
 	    
 	    public void Reset()
@@ -131,6 +131,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		    lastReceivedVideoFrameTime = 0;
 		    lastReceivedAudioFrameTime = 0;
 		    audioBufferTimeLength = 0;
+		    audioBufferUnderrun = 0;
 	    }
     }
 
@@ -639,7 +640,10 @@ public sealed partial class NdiReceiver : MonoBehaviour
 							{
 								_audioFramesBuffer[i].channelSamplesReaded[channelNo] = 0;
 							}
-
+							lock (_bufferStatisticsLock)
+							{
+								_bufferStatistics.audioBufferUnderrun++;
+							}
 							Release();							
 							return false;
 						}
@@ -748,6 +752,11 @@ public sealed partial class NdiReceiver : MonoBehaviour
 						}
 
 						UpdateAudioStatistics(removeCounter);
+						lock (_bufferStatisticsLock)
+						{
+							_bufferStatistics.audioBufferUnderrun++;
+						}
+
 						return false;
 					}
 
@@ -773,7 +782,13 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				}
 
 				if (availableSamples < frameSize)
+				{
+					lock (_bufferStatisticsLock)
+					{
+						_bufferStatistics.audioBufferUnderrun++;
+					}
 					return false;
+				}
 
 				if (_audioFramesBuffer.Count > 0 && _audioFramesBuffer[0].speakerPositions != null)
 				{
