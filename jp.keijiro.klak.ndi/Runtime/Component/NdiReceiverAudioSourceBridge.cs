@@ -15,10 +15,12 @@ namespace Klak.Ndi
 		private static float[] _spatializedData;
 		private static AudioClip _spatilizeHelperClip;
 		private bool _noSpatializerPlugin = false;
+		private AudioSource _audioSource;
 		
 		private void Awake()
 		{
 			hideFlags = HideFlags.NotEditable;
+			_audioSource = GetComponent<AudioSource>();
 		}
 
 		public void Init(bool isVirtualSpeaker, int maxSystemChannels, int virtualSpeakerChannel = -1, int maxVirtualSpeakerChannels = -1, bool usingSpatializerPlugin = false)
@@ -28,8 +30,9 @@ namespace Klak.Ndi
 			_noSpatializerPlugin = !usingSpatializerPlugin;
 			
 			// Workaround for external AudioSources: Stop playback because otherwise volume and all it's other properties do not get applied.
-			AudioSource audioSource = GetComponent<AudioSource>();
-			if (isVirtualSpeaker && !audioSource.spatialize)
+			if (!_audioSource)
+				_audioSource = GetComponent<AudioSource>();
+			if (isVirtualSpeaker && !_audioSource.spatialize)
 			{
 			
 				if (!_spatilizeHelperClip)
@@ -47,13 +50,13 @@ namespace Klak.Ndi
 					//_isSpatialized = true;
 				}
 				
-				audioSource.loop = true;
-				audioSource.clip = _spatilizeHelperClip;
+				_audioSource.loop = true;
+				_audioSource.clip = _spatilizeHelperClip;
 			}
 
-			audioSource.dopplerLevel = 0;
-			audioSource.Stop();
-			audioSource.Play();				
+			_audioSource.dopplerLevel = 0;
+			_audioSource.Stop();
+			_audioSource.Play();				
 		}
 		
 		// Automagically called by Unity when an AudioSource component is present on the same GameObject
