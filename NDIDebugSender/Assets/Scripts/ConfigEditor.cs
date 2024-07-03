@@ -36,7 +36,7 @@ public class ConfigEditor : MonoBehaviour
 
     public void UpdateAnySelected()
     {
-        bool anySelected = _listenerUIs.Any(l => l.selected.isOn);
+        bool anySelected = _listenerUIs.Any(l => l.selected.isOn && l.gameObject.activeSelf);
         onAnySelected.Invoke(anySelected);
 
         foreach (var l in _listenerMovers)
@@ -435,6 +435,7 @@ public class ConfigEditor : MonoBehaviour
 
         for (int i = positions.Length; i < _listenerMovers.Count; i++)
         {
+            _listenerUIs[i].selected.isOn =false;
             _listenerMovers[i].gameObject.SetActive(false);
             _listenerUIs[i].gameObject.SetActive(false);
         }
