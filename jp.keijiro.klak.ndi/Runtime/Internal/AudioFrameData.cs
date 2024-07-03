@@ -52,6 +52,8 @@ namespace Klak.Ndi
 			samplesPerChannel = audio.NoSamples;
 			if (meta != null)
 				speakerPositions = AudioMeta.GetSpeakerConfigFromXml(meta, out isObjectBased, out gains);
+			else
+				speakerPositions = null;
 
 			if (requiredSampleRate != audio.SampleRate)
 			{

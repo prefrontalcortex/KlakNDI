@@ -8,8 +8,9 @@ namespace Klak.Ndi.Audio
 		public Vector3 relativePosition;
 		private AudioSourceBridge _audioSourceBridge;
 
-		public void UpdateParameters(int channelNo, int maxChannels, int systemChannels, bool objectBasedAudio = false)
+		public void UpdateParameters(Vector3 position, int channelNo, int maxChannels, int systemChannels, bool objectBasedAudio = false)
 		{
+			speakerAudio.transform.localPosition = position;
 			SetAudioSourceParameters(objectBasedAudio);
 
 			speakerAudio.gameObject.SetActive(true);

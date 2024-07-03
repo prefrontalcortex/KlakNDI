@@ -323,6 +323,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private bool _settingsChanged = false;
 	private object _audioMetaLock = new object();
 	private bool _updateAudioMetaSpeakerSetup = false;
+	private bool _receivingAudioMetaSpeakerSetup = false;
 	private Vector3[] _receivedSpeakerPositions;
 	private bool _receivingObjectBasedAudio = false;
 	
@@ -460,17 +461,20 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		
 		using (ADD_AUDIO_FRAME_TO_QUEUE_MARKER.Auto())
 		{
+			AudioFrameData frame;
 			lock (audioBufferLock)
 			{
-				AudioFrameData frame;
 				if (_audioFramesPool.Count == 0)
 					frame = new AudioFrameData();
 				else
 					frame = _audioFramesPool.Dequeue();
-				
-				frame.Set(audioFrame, _expectedAudioSampleRate);
-
-				int removedFrames = 0;
+			}
+			
+			frame.Set(audioFrame, _expectedAudioSampleRate);
+			
+			int removedFrames = 0;
+			lock (audioBufferLock)
+			{
 				_newAudioFramesBuffer.Add(frame);
 				while ((_newAudioFramesBuffer.Count*audioFrame.NoSamples) > _MaxBufferSampleSize)
 				{
@@ -481,8 +485,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				}
 
 				UpdateAudioStatistics(removedFrames);
-				return frame;
 			}
+			return frame;
 		}
 	}
 
@@ -502,7 +506,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 				int frameIndex = 0;
 				int samplesCopied = 0;
-				//int maxChannels = _audioFramesBuffer.Max(f => f.noChannels);
+				
 				unsafe
 				{
 					var dataPtr = UnsafeUtility.PinGCArrayAndGetDataAddress(data, out var handle);
@@ -535,26 +539,17 @@ public sealed partial class NdiReceiver : MonoBehaviour
 									_audioFramesBuffer[i].channelSamplesReaded[c] = 0;
 							}
 							Release();
+							lock (_bufferStatisticsLock)
+							{
+								_bufferStatistics.audioBufferUnderrun++;
+							}
 							return false;
 						}
 
 						_currentAudioFrame = _audioFramesBuffer[frameIndex];
-						
-						// TODO: downmix to channelCountInData !!
-						
-						if (channelCountInData != _currentAudioFrame.noChannels)
-						{
-							for (int i = samplesCopied; i < data.Length; i++)
-							{
-								data[i] = 0f;
-							}
-
-							break;
-						}
-
+			
 						var audioFrameData = _currentAudioFrame.GetAllChannelsArray();
-						//var channelData = _currentAudioFrame.GetChannelArray(channelNo, frameSize);
-
+				
 						var audioFrameSamplesReaded = _audioFramesBuffer[frameIndex].channelSamplesReaded[0];
 						int samplesToCopy = Mathf.Min(frameSize, _currentAudioFrame.samplesPerChannel - audioFrameSamplesReaded);
 
@@ -562,9 +557,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 							_currentAudioFrame.channelSamplesReaded[i] += samplesToCopy;
 						
 						var channelDataPtr = (float*)audioFrameData.GetUnsafePtr();
-						samplesToCopy *= channelCountInData;
+						//samplesToCopy *= channelCountInData;
 
-						BurstMethods.PlanarToInterleaved(channelDataPtr, audioFrameSamplesReaded, destPtr, samplesCopied, channelCountInData, samplesToCopy );
+						BurstMethods.PlanarToInterleaved(channelDataPtr, audioFrameSamplesReaded, _currentAudioFrame.noChannels,  destPtr, samplesCopied * channelCountInData, channelCountInData, samplesToCopy );
 
 						samplesCopied += samplesToCopy;
 						frameIndex++;
@@ -652,11 +647,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 						if (channelNo >= _currentAudioFrame.noChannels)
 						{
-							for (int i = samplesCopied; i < data.Length; i++)
-							{
-								data[i] = 0f;
-							}
-
+							Array.Fill(data, 0f, samplesCopied, data.Length - samplesCopied);
 							break;
 						}
 
@@ -666,9 +657,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 						if (frameIndex == 0 && audioFrameSamplesReaded >= _currentAudioFrame.samplesPerChannel)
 						{
 							// For some reason PullAudioFrame was not called...so we break here 
-							for (int i = 0; i < data.Length; i++)
-								data[i] = 0f;
-							Release();
+							Array.Fill(data, 0f);
+ 							Release();
 							return false;
 						}
 						
@@ -844,8 +834,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		float dist = virtualSpeakerDistances;
 		for (int i = 0; i < channelCount; i++)
 		{
-			var speaker = new VirtualSpeakers();
-
+			var speaker = GetOrCreateVirtualSpeakerClass(out var isNew);
+			
 			float angle = i * Mathf.PI * 2 / channelCount;
 			float x = Mathf.Cos(angle) * dist;
 			float z = Mathf.Sin(angle) * dist;
@@ -855,14 +845,28 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			_virtualSpeakers.Add(speaker);		
 		}
 	}
+
+	private VirtualSpeakers GetOrCreateVirtualSpeakerClass(out bool isNew)
+	{
+		if (_parkedVirtualSpeakers.Count > 0)
+		{
+			isNew = false;
+			var vs = _parkedVirtualSpeakers[_parkedVirtualSpeakers.Count - 1];
+			_parkedVirtualSpeakers.RemoveAt(_parkedVirtualSpeakers.Count - 1);
+			return vs;
+		}
+
+		isNew = true;
+		return new VirtualSpeakers();
+	}
 	
 	void CreateVirtualSpeakersQuad()
 	{
 		float dist = virtualSpeakerDistances;
 		for (int i = 0; i < 4; i++)
 		{
-			var speaker = new VirtualSpeakers();
-
+			var speaker = GetOrCreateVirtualSpeakerClass(out var isNew);
+			
 			Vector3 position = Vector3.zero;
 			switch (i)
 			{
@@ -871,9 +875,14 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				case 4 : position = new Vector3(-dist, 0, -dist); break;
 				case 5 : position = new Vector3(dist, 0, -dist); break;
 			}
-			
-			speaker.CreateGameObjectWithAudioSource(transform, position);
-			speaker.CreateAudioSourceBridge(this, i, 4, _systemAvailableAudioChannels);
+
+			if (isNew)
+			{
+				speaker.CreateGameObjectWithAudioSource(transform, position);
+				speaker.CreateAudioSourceBridge(this, i, 4, _systemAvailableAudioChannels);
+			}
+			else
+				speaker.UpdateParameters(position, i, 4, _systemAvailableAudioChannels, false);
 			_virtualSpeakers.Add(speaker);
 		}		
 	}	
@@ -883,8 +892,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		float dist = virtualSpeakerDistances;
 		for (int i = 0; i < 6; i++)
 		{
-			var speaker = new VirtualSpeakers();
-
+			var speaker = GetOrCreateVirtualSpeakerClass(out var isNew);
+			
 			Vector3 position = Vector3.zero;
 			switch (i)
 			{
@@ -896,8 +905,14 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				case 5 : position = new Vector3(dist, 0, -dist); break;
 			}
 			
-			speaker.CreateGameObjectWithAudioSource(transform, position);
-			speaker.CreateAudioSourceBridge(this, i, 6, _systemAvailableAudioChannels);
+			if (isNew)
+			{
+				speaker.CreateGameObjectWithAudioSource(transform, position);
+				speaker.CreateAudioSourceBridge(this, i, 6, _systemAvailableAudioChannels);
+			}
+			else 
+				speaker.UpdateParameters(position, i, 6, _systemAvailableAudioChannels, false);
+
 			_virtualSpeakers.Add(speaker);
 		}		
 	}
@@ -907,8 +922,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		float dist = virtualSpeakerDistances;
 		for (int i = 0; i < 8; i++)
 		{
-			var speaker = new VirtualSpeakers();
-
+			var speaker = GetOrCreateVirtualSpeakerClass(out var isNew);
+			
 			Vector3 position = Vector3.zero;
 			switch (i)
 			{
@@ -922,17 +937,23 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				case 7 : position = new Vector3(dist, 0, -dist); break;
 			}
 			
-			speaker.CreateGameObjectWithAudioSource(transform, position);
-			speaker.CreateAudioSourceBridge(this, i, 8, _systemAvailableAudioChannels);
+			if (isNew)
+			{
+				speaker.CreateGameObjectWithAudioSource(transform, position);
+				speaker.CreateAudioSourceBridge(this, i, 8, _systemAvailableAudioChannels);
+			}
+			else 
+				speaker.UpdateParameters(position, i, 8, _systemAvailableAudioChannels, false);
 			_virtualSpeakers.Add(speaker);
 		}
 	}
 
 	void CreateOrUpdateSpeakerSetupByAudioMeta()
 	{
+		_updateAudioMetaSpeakerSetup = false;
 		DestroyAudioSourceBridge();
 		var speakerPositions = GetReceivedSpeakerPositions();
-		
+		_virtualSpeakersCount = _virtualSpeakers.Count;
 		if (speakerPositions == null || speakerPositions.Length == 0)
 		{
 			Debug.LogWarning("No speaker positions found in audio metadata.", this);
@@ -962,24 +983,18 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			
 			for (int i = 0; i < speakerPositions.Length; i++)
 			{
-				if (_parkedVirtualSpeakers.Count > 0)
+				var speaker = GetOrCreateVirtualSpeakerClass(out var isNew);
+				if (isNew)
 				{
-					var vs = _parkedVirtualSpeakers[0];
-					_parkedVirtualSpeakers.RemoveAt(0);
-					vs.speakerAudio.transform.position = speakerPositions[i];
-					_virtualSpeakers.Add(vs);
-					vs.UpdateParameters(i, speakerPositions.Length, _systemAvailableAudioChannels, _receivingObjectBasedAudio);
-
-				}
-				else
-				{
-					var speaker = new VirtualSpeakers();
 					speaker.CreateGameObjectWithAudioSource(transform, speakerPositions[i], _receivingObjectBasedAudio);
 					speaker.CreateAudioSourceBridge(this, i, speakerPositions.Length, _systemAvailableAudioChannels);
-					_virtualSpeakers.Add(speaker);
 				}
+				else 
+					speaker.UpdateParameters(speakerPositions[i],i, speakerPositions.Length, _systemAvailableAudioChannels, _receivingObjectBasedAudio);
+				_virtualSpeakers.Add(speaker);
 			}
 		}
+		_virtualSpeakersCount = _virtualSpeakers.Count;
 	}
 
 	void ResetAudioSpeakerSetup()
@@ -992,11 +1007,12 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			return;
 		}
 		
-		var audioConfiguration = AudioSettings.GetConfiguration();
-		if (!_receivingObjectBasedAudio)
+		if (!_receivingObjectBasedAudio && !_receivingAudioMetaSpeakerSetup)
 		{
+			var audioConfiguration = AudioSettings.GetConfiguration();
 			if (_systemAvailableAudioChannels == 2 && _receivedAudioChannels == 2)
 			{
+				_usingVirtualSpeakers = false;
 				Debug.Log("Setting Speaker Mode to Stereo");
 				audioConfiguration.speakerMode = AudioSpeakerMode.Stereo;
 				AudioSettings.Reset(audioConfiguration);
@@ -1006,6 +1022,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 			if (_systemAvailableAudioChannels == 4 && _receivedAudioChannels == 4)
 			{
+				_usingVirtualSpeakers = false;
 				Debug.Log("Setting Speaker Mode to Quad");
 				audioConfiguration.speakerMode = AudioSpeakerMode.Quad;
 				AudioSettings.Reset(audioConfiguration);
@@ -1015,6 +1032,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 			if (_systemAvailableAudioChannels == 6 && _receivedAudioChannels == 4)
 			{
+				_usingVirtualSpeakers = false;
 				Debug.Log("Setting Speaker Mode to 5.1");
 				audioConfiguration.speakerMode = AudioSpeakerMode.Mode5point1;
 				AudioSettings.Reset(audioConfiguration);
@@ -1024,6 +1042,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 			if (_systemAvailableAudioChannels == 8 && _receivedAudioChannels == 4)
 			{
+				_usingVirtualSpeakers = false;
 				Debug.Log("Setting Speaker Mode to 7.1");
 				audioConfiguration.speakerMode = AudioSpeakerMode.Mode7point1;
 				AudioSettings.Reset(audioConfiguration);
@@ -1054,21 +1073,21 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				return;
 			}
 
-			DestroyAllVirtualSpeakers();
+			ParkAllVirtualSpeakers();
 			_virtualSpeakersCount = _virtualSpeakers.Count;
 
 			return;
 		}
 		
-		DestroyAllVirtualSpeakers();
+		ParkAllVirtualSpeakers();
 
 		_usingVirtualSpeakers = true;
 		_virtualSpeakersCount = _virtualSpeakers.Count;
-		if (channelNo == 4)
+		if (!_receivingAudioMetaSpeakerSetup && channelNo == 4)
 			CreateVirtualSpeakersQuad();
-		else if (channelNo == 6)
+		else if (!_receivingAudioMetaSpeakerSetup && channelNo == 6)
 			CreateVirtualSpeakers5point1();
-		else if (channelNo == 8)
+		else if (!_receivingAudioMetaSpeakerSetup && channelNo == 8)
 			CreateVirtualSpeakers7point1();
 		else
 		{
@@ -1094,6 +1113,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		var speakerSetup = AudioMeta.GetSpeakerConfigFromXml(metadata, out _receivingObjectBasedAudio, out _);
 		if (speakerSetup != null && speakerSetup.Length >= 0)
 		{
+			_receivingAudioMetaSpeakerSetup = true;
 			_updateAudioMetaSpeakerSetup = true;
 			lock (_audioMetaLock)
 			{
@@ -1101,6 +1121,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 					_receivedSpeakerPositions = speakerSetup;
 			}
 		}
+		else
+			_receivingAudioMetaSpeakerSetup = false;
 	}
 
 	void FillAudioBuffer(Interop.AudioFrame audio)
@@ -1127,6 +1149,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		{
 			ReadAudioMetaData(audio.Metadata);
 		}
+		else
+			_receivingAudioMetaSpeakerSetup = false;
 
 		if (settingsChanged)
 		{

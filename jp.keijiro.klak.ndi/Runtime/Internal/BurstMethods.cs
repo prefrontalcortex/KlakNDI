@@ -79,7 +79,17 @@ namespace Klak.Ndi
             {
                 for (int i = 0; i < length; i++)
                     for (int c = 0; c < channels; c++)
-                        destData[destOffset + (i * channels + c)] = planarData[planarOffset + i + c];
+                        destData[destOffset + (i * channels + c)] = planarData[planarOffset + (i * channels + c)];
+            }
+            
+            [BurstCompile]
+            public static unsafe void PlanarToInterleaved(float* planarData, int planarOffset, int planarChannels, float* destData, int destOffset, int destChannels, int length)
+            {
+                int channels = math.min(planarChannels, destChannels);
+   
+                for (int i = 0; i < length; i++)
+                    for (int c = 0; c < channels; c++)
+                        destData[destOffset + (i * destChannels + c)] = planarData[planarOffset + (i * planarChannels + c)];
             }
             
             [BurstCompile]
