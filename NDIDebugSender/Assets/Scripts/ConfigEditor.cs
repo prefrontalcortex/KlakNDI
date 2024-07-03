@@ -66,6 +66,11 @@ public class ConfigEditor : MonoBehaviour
             Vector3 center = Vector3.zero;
             for (int i = 0; i < pos.Length; i++)
                 center += _groupedOffsets[i];
+            if (selCount == 0)
+            {
+                _selectedHandle.gameObject.SetActive(false);
+                return;
+            }
             center /= selCount;
             for (int i = 0; i < pos.Length; i++)
                 _groupedOffsets[i] -= center;
@@ -495,6 +500,8 @@ public class ConfigEditor : MonoBehaviour
 
     private void OnEnable()
     {
+        VirtualAudio.UseVirtualAudio = true;
+        VirtualAudio.ActivateObjectBasedAudio(false);
         UpdateList();
     }
 
