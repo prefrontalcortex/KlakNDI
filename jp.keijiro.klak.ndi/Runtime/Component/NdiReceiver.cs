@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using CircularBuffer;
 using Klak.Ndi.Audio;
 using Klak.Ndi.Interop;
 #if OSC_JACK
@@ -326,6 +325,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private bool _receivingAudioMetaSpeakerSetup = false;
 	private Vector3[] _receivedSpeakerPositions;
 	private bool _receivingObjectBasedAudio = false;
+	public Action<AudioFrame> OnAudioFrameReceived;
+
 	
 	public Vector3[] GetReceivedSpeakerPositions()
 	{
@@ -1161,8 +1162,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		}
 
 		AddAudioFrameToQueue(audio);
+		OnAudioFrameReceived?.Invoke(audio);
 	}
-
+	
 	private unsafe float ReadAudioDataSampleInterleaved(Interop.AudioFrame audio, void* audioDataPtr, int sampleIndex, int channelIndex, float resamplingRate)
 	{
 		if (resamplingRate == 1)

@@ -159,6 +159,11 @@ namespace Klak.Ndi.Audio
         private static double _lastCheckSetupTime = -1;
         private static List<int> _usedObjectBasedChannels = new List<int>(32);
 
+        /// <summary>
+        /// Be aware: It's called from the Audio Thread! 
+        /// </summary>
+        public static UnityEvent<NativeArray<float>, int> OnAudioStreamUpdated = new UnityEvent<NativeArray<float>, int>();
+        
         public static bool ObjectBasedAudio 
         {
             get => _objectBasedAudio;
@@ -801,6 +806,7 @@ namespace Klak.Ndi.Audio
                 if (_virtualListeners.Count == 0)
                 {
                     vus = new float[_listenerDatas.Count];
+                    OnAudioStreamUpdated.Invoke(_audioSendStream, 0);
                     return result;
                 }
                 
@@ -815,6 +821,9 @@ namespace Klak.Ndi.Audio
                     
                     vus = new float[_listenerDatas.Count];
                     vus[_currentTestChannel] = 1f;
+                    
+                    OnAudioStreamUpdated.Invoke(_audioSendStream, _listenerDatas.Count);
+
                     return result;
                 }
                 
@@ -831,6 +840,7 @@ namespace Klak.Ndi.Audio
                     }
                 }
                 
+                OnAudioStreamUpdated.Invoke(_audioSendStream, _listenerDatas.Count);
                 return result;
             }
         }
