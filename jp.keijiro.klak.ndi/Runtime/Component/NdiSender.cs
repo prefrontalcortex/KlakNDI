@@ -338,20 +338,21 @@ public sealed partial class NdiSender : MonoBehaviour
                 if (!stream.IsCreated || stream.Length == 0)
                     return;
                 
-                var frame = new Interop.AudioFrame
+                var framev3 = new Interop.AudioFrameV3
                 {
-                    SampleRate = sampleRate,
-                    NoChannels = channelsCount,
-                    NoSamples = numSamples,
-                    ChannelStrideInBytes = numSamples * sizeof(float),
-                    Data =  (System.IntPtr)stream.GetUnsafePtr()
+                    sample_rate = sampleRate,
+                    no_channels = channelsCount,
+                    no_samples = numSamples,
+                    channel_stride_in_bytes = numSamples * sizeof(float),
+                    p_data = (System.IntPtr)stream.GetUnsafePtr(),
+                    p_metadata = _metaDataPtr,
+                    FourCC = Interop.FourCC_audio_type_e.FourCC_audio_type_FLTP,
+                    timecode =  long.MaxValue
                 };
                 
-                frame._Metadata = _metaDataPtr;
-
                 if (_send != null && !_send.IsInvalid && !_send.IsClosed)
-                {
-                    _send.SendAudio(frame);
+                { 
+                    _send.SendAudioV3(framev3);
                 }
             }
         }

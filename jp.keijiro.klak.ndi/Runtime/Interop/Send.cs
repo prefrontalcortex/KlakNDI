@@ -23,6 +23,9 @@ public class Send : SafeHandleZeroOrMinusOneIsInvalid
     public static Send Create(string name)
       => _Create(new Settings { NdiName = name });
 
+    public static Send Create(string name, bool clockVideo, bool clockAudio)
+      => _Create(new Settings { NdiName = name, ClockVideo = clockVideo, ClockAudio = clockAudio });
+
     public void SendVideo(in VideoFrame data)
       => _SendVideo(this, data);
 
@@ -38,6 +41,9 @@ public class Send : SafeHandleZeroOrMinusOneIsInvalid
     public void SendAudio(in AudioFrame data)
       => _SendAudio(this, data);
 
+    public void SendAudioV3(in AudioFrameV3 data)
+      => _SendAudioV3(this, data);
+    
     #endregion
 
     #region Unmanaged interface
@@ -73,6 +79,10 @@ public class Send : SafeHandleZeroOrMinusOneIsInvalid
 
     [DllImport(Config.DllName, EntryPoint = "NDIlib_send_send_audio_v2")]
     static extern void _SendAudio(Send send, in AudioFrame data);
+    
+    [DllImport(Config.DllName, EntryPoint = "NDIlib_send_send_audio_v3")]
+    static extern void _SendAudioV3(Send send, in AudioFrameV3 data);
+    
 
     [DllImport(Config.DllName, EntryPoint = "NDIlib_util_send_send_audio_interleaved_32f")]
     static extern void _SendAudioInterleaved(Send send, in AudioFrameInterleaved data);
