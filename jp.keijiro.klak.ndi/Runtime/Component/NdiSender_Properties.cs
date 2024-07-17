@@ -1,3 +1,4 @@
+using System;
 using Klak.Ndi.Audio;
 using UnityEngine;
 
@@ -28,6 +29,8 @@ public sealed partial class NdiSender : MonoBehaviour, IAdmDataProvider
     public bool useCameraPositionForVirtualAttenuation = false;
     public int maxObjectBasedChannels = 32;
     public SpeakerConfig customSpeakerConfig;
+    public FrameRateOptions frameRate = FrameRateOptions.Common_60;
+    public bool setRenderTargetFrameRate = true;
     
     public string ndiName
       { get => _ndiNameRuntime;

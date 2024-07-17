@@ -25,6 +25,9 @@ sealed class NdiSenderEditor : UnityEditor.Editor
     private AutoProperty audioMode;
     private AutoProperty virtualListenerDistance;
     private AutoProperty maxObjectBasedChannels;
+
+    private AutoProperty setRenderTargetFrameRate;
+    private AutoProperty frameRate;
     
     private AutoProperty customSpeakerConfig;
     private AutoProperty useCameraPositionForVirtualAttenuation;
@@ -85,6 +88,9 @@ sealed class NdiSenderEditor : UnityEditor.Editor
             _captureMethod.Target.enumValueIndex == (int)CaptureMethod.Texture)
             EditorGUILayout.PropertyField(_sourceTexture);
 
+        EditorGUILayout.PropertyField(frameRate);
+        EditorGUILayout.PropertyField(setRenderTargetFrameRate);
+        
         EditorGUI.indentLevel--;
 
         EditorGUILayout.Space();

@@ -227,6 +227,10 @@ public sealed partial class NdiSender : MonoBehaviour
         {
             ResetState();
         }
+
+        int targetFrameRate = setRenderTargetFrameRate ? frameRate.GetUnityFrameTarget() : -1;
+        if (Application.targetFrameRate != targetFrameRate)
+            Application.targetFrameRate = targetFrameRate;
     }
 
     private void LateUpdate()
@@ -537,6 +541,8 @@ public sealed partial class NdiSender : MonoBehaviour
             return;
         }
 
+        frameRate.GetND(out var frameRateN, out var frameRateD);
+        
         // Frame data
         // Frame data setup
         var frame = new Interop.VideoFrame
@@ -547,7 +553,9 @@ public sealed partial class NdiSender : MonoBehaviour
             FourCC = entry.FourCC,
             FrameFormat = Interop.FrameFormat.Progressive,
             Data = entry.ImagePointer,
-            _Metadata = entry.MetadataPointer
+            _Metadata = entry.MetadataPointer,
+            FrameRateD = frameRateD,
+            FrameRateN = frameRateN
         };
 
         // Async-send initiation
