@@ -95,9 +95,15 @@ namespace Klak.Ndi
             {
                 int channels = math.min(planarChannels, destChannels);
    
+
                 for (int i = 0; i < length; i++)
+                {
                     for (int c = 0; c < channels; c++)
                         destData[destOffset + (i * destChannels + c)] = planarData[planarOffset + (length * c + i)];
+
+                    for (int c = channels; c < destChannels; c++)
+                        destData[destOffset + (i * destChannels + c)] = 0f;
+                }
             }
             
             [BurstCompile]
