@@ -67,7 +67,8 @@ sealed class ReadbackEntry
         // Image buffer
         if (!_image.IsCreated || _image.Length != frameDateSize)
         {
-            _image.Dispose();
+            if (_image.IsCreated)
+                _image.Dispose();
             _image = new NativeArray<byte>(frameDateSize, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
         }
         
