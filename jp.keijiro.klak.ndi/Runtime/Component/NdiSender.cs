@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 using Klak.Ndi.Audio;
 #if OSC_JACK
 using OscJack;
@@ -29,7 +31,7 @@ public sealed partial class NdiSender : MonoBehaviour
             _send = SharedInstance.GameViewSend;
 
         // Private object initialization
-        if (_send == null) _send = Interop.Send.Create(ndiName);
+        if (_send == null) _send = Interop.Send.Create(ndiName, true, false);
         if (_pool == null) _pool = new ReadbackPool();
         if (_converter == null) _converter = new FormatConverter(_resources);
         if (_onReadback == null) _onReadback = OnReadback;
@@ -527,6 +529,72 @@ public sealed partial class NdiSender : MonoBehaviour
 
     #region GPU readback completion callback
 
+    private object _lastVideoFrameLock = new object();
+    private ReadbackEntry _lastVideoFrameEntry = null;
+    private List<ReadbackEntry> _finished = new List<ReadbackEntry>();
+    private Task _videoSendThreadClocked;
+    private CancellationToken _videoSendThreadCancelToken;
+    private CancellationTokenSource _videoSendThreadCancelTokenSource;
+    
+    private void VideoSendThreadClocked()
+    {
+        bool sleep = false;
+        do
+        {
+            if (_videoSendThreadCancelToken.IsCancellationRequested)
+                return;
+
+            if (sleep)
+            {
+                sleep = false;
+                Thread.Sleep(1);
+            }
+
+            if (_send == null || _send.IsInvalid || _send.IsClosed)
+            {
+                sleep = true;
+                continue;
+            }
+
+            ReadbackEntry entry;
+            lock (_lastVideoFrameLock)
+            {
+                if (_lastVideoFrameEntry == null)
+                {
+                    sleep = true;
+                    continue;
+                }
+
+                entry = _lastVideoFrameEntry;
+                _lastVideoFrameEntry = null;
+            }
+
+            frameRate.GetND(out var frameRateN, out var frameRateD);
+            
+            // Frame data setup
+            var frame = new Interop.VideoFrame
+            {
+                Width = entry.Width,
+                Height = entry.Height,
+                LineStride = entry.Width * 2,
+                FourCC = entry.FourCC,
+                FrameFormat = Interop.FrameFormat.Progressive,
+                Data = entry.ImagePointer,
+                _Metadata = entry.MetadataPointer,
+                Timecode = long.MaxValue,
+                FrameRateD = frameRateD,
+                FrameRateN = frameRateN
+            };
+
+            _send.SendVideoAsync(frame);
+            _send.SendVideoAsync();
+            lock (_lastVideoFrameLock)
+            {
+                _finished.Add(entry);
+            }
+        } while (true);
+    }
+    
     unsafe void OnReadback(AsyncGPUReadbackRequest req)
     {
         // Readback entry retrieval
@@ -541,33 +609,50 @@ public sealed partial class NdiSender : MonoBehaviour
             return;
         }
 
-        frameRate.GetND(out var frameRateN, out var frameRateD);
-        
-        // Frame data
-        // Frame data setup
-        var frame = new Interop.VideoFrame
+        lock (_lastVideoFrameLock)
         {
-            Width = entry.Width,
-            Height = entry.Height,
-            LineStride = entry.Width * 2,
-            FourCC = entry.FourCC,
-            FrameFormat = Interop.FrameFormat.Progressive,
-            Data = entry.ImagePointer,
-            _Metadata = entry.MetadataPointer,
-            FrameRateD = frameRateD,
-            FrameRateN = frameRateN
-        };
-
-        // Async-send initiation
-        // This causes a synchronization for the last frame -- i.e., It locks
-        // the thread if the last frame is still under processing.
-        _send.SendVideoAsync(frame);
-
-        // We don't need the last frame anymore. Free it.
-        _pool.FreeMarkedEntry();
-
-        // Mark this frame to get freed in the next frame.
-        _pool.Mark(entry);
+            while (_finished.Count > 0)
+            {
+                _pool.Free(_finished[0]);
+                _finished.RemoveAt(0);
+            }
+            if (_lastVideoFrameEntry != null)
+            {
+                // Mark this frame to get freed in the next frame.
+                _pool.Free(_lastVideoFrameEntry);  
+            }
+             //  _pool.FreeMarkedEntry();
+            _lastVideoFrameEntry = entry;
+        }
+        
+        // frameRate.GetND(out var frameRateN, out var frameRateD);
+        //
+        // // Frame data
+        // // Frame data setup
+        // var frame = new Interop.VideoFrame
+        // {
+        //     Width = entry.Width,
+        //     Height = entry.Height,
+        //     LineStride = entry.Width * 2,
+        //     FourCC = entry.FourCC,
+        //     FrameFormat = Interop.FrameFormat.Progressive,
+        //     Data = entry.ImagePointer,
+        //     _Metadata = entry.MetadataPointer,
+        //     Timecode = long.MaxValue,
+        //     FrameRateD = frameRateD,
+        //     FrameRateN = frameRateN
+        // };
+        //
+        // // Async-send initiation
+        // // This causes a synchronization for the last frame -- i.e., It locks
+        // // the thread if the last frame is still under processing.
+        // _send.SendVideoAsync(frame);
+        //
+        // // We don't need the last frame anymore. Free it.
+        // _pool.FreeMarkedEntry();
+        //
+        // // Mark this frame to get freed in the next frame.
+        // _pool.Mark(entry);
     }
 
     #endregion
@@ -636,7 +721,14 @@ public sealed partial class NdiSender : MonoBehaviour
 
         // The following part of code is to activate the subcomponents. We can
         // break here if willBeActive is false.
-        if (!willBeActive) return;
+        if (!willBeActive)
+        {
+            _videoSendThreadCancelTokenSource?.Cancel();
+            _videoSendThreadClocked?.Wait();
+            _videoSendThreadClocked?.Dispose();
+            _videoSendThreadClocked = null;
+            return;
+        }
 
         if (captureMethod == CaptureMethod.Camera)
         {
@@ -655,6 +747,16 @@ public sealed partial class NdiSender : MonoBehaviour
             // Capture coroutine initiation
             StartCoroutine(CaptureCoroutine());
         }
+
+        _videoSendThreadCancelTokenSource?.Cancel();
+        _videoSendThreadClocked?.Wait();
+        
+        _videoSendThreadClocked?.Dispose();
+        _videoSendThreadCancelTokenSource = new CancellationTokenSource();
+        _videoSendThreadCancelToken = _videoSendThreadCancelTokenSource.Token;
+
+        _videoSendThreadClocked = new Task(VideoSendThreadClocked, _videoSendThreadCancelToken, TaskCreationOptions.LongRunning);
+        _videoSendThreadClocked.Start();
     }
 
     // Component state reset with NDI object disposal
