@@ -11,6 +11,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Debug = UnityEngine.Debug;
 
 namespace Klak.Ndi {
 
@@ -223,6 +224,22 @@ public sealed partial class NdiSender : MonoBehaviour
             _listenerPosition = transform.position;
         }
 
+        switch (audioOrientation)
+        {
+            case AudioOrientationOption.Default:
+                VirtualAudio.ListenerOrientation = Pose.identity;
+                break;
+            case AudioOrientationOption.Dome:
+                VirtualAudio.ListenerOrientation = new Pose(Vector3.zero, Quaternion.Euler(0f, 180f, 0f));
+                break;
+            case AudioOrientationOption.CustomTransform:
+                if (customAudioOrientationTransform)
+                    VirtualAudio.ListenerOrientation = new Pose(customAudioOrientationTransform.position, customAudioOrientationTransform.rotation);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
+
         if (audioMode != AudioMode.CustomVirtualAudioSetup)
             VirtualAudio.PlayCenteredAudioSourceOnAllListeners = playCenteredAudioSourcesOnAllSpeakers;
         if (_audioMode != audioMode || _lastVirtualListenerDistance != virtualListenerDistance)
@@ -279,7 +296,7 @@ public sealed partial class NdiSender : MonoBehaviour
                 lock (_channelVisualisationsLock)
                     if (_channelVisualisations != null)
                         Array.Fill(_channelVisualisations, 0f);
-                SendChannels(stream, samplesCount, _objectBasedChannels.Count, true);
+                SendChannels(stream, samplesCount, _objectBasedChannels.Count);
                 return;
             }
 
@@ -309,36 +326,19 @@ public sealed partial class NdiSender : MonoBehaviour
             lock (_admEventLock)
                 _onAdmDataChanged?.Invoke(admData);
             
-            SendChannels(stream, samplesCount, _objectBasedChannels.Count, true);
+            SendChannels(stream, samplesCount, _objectBasedChannels.Count);
         }
     }
     
-    private void SendChannels(NativeArray<float> stream, int samplesCount, int channelsCount, bool forceUpdateMetaData = false)
+    private void SendChannels(NativeArray<float> stream, int samplesCount, int channelsCount)
     {
         unsafe
         {
-            bool settingsChanged = false;
-            int tempSamples = samplesCount;
+            numSamples = samplesCount;
+            numChannels = channelsCount;
 
-            if (tempSamples != numSamples)
-            {
-                settingsChanged = true;
-                numSamples = tempSamples;
-                
-            }
-
-            if (channelsCount != numChannels)
-            {
-                settingsChanged = true;
-                numChannels = channelsCount;
-            }
-
-            if (settingsChanged || forceUpdateMetaData)
-            {
-                UpdateAudioMetaData();
-            }
-
-
+            UpdateAudioMetaData();
+            
             unsafe
             {
                 if (!stream.IsCreated || stream.Length == 0)

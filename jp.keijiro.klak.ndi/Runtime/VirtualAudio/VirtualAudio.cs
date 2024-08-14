@@ -73,9 +73,17 @@ namespace Klak.Ndi.Audio
             public NativeArray<float> audioStreamDestination;
         }
         
-        internal class VirtualListener 
+        internal class VirtualListener
         {
-            public Vector3 position;
+            public Vector3 rawPosition;
+
+            public Vector3 TransformedPosition
+            {
+                get
+                {
+                    return ApplyOrientationTransform(rawPosition);
+                }
+            }
             public float volume;
 
             public SphericalCoordinate sphericalCoordinate;
@@ -126,6 +134,23 @@ namespace Klak.Ndi.Audio
             set => _centeredAudioSourceOnAllListeners = value;
         }
         
+        private static object _listenerOrientationLockObject = new object();
+        private static Pose _listenerOrientation = Pose.identity;
+
+        public static Pose ListenerOrientation
+        {
+            get
+            {
+                lock (_listenerOrientationLockObject)
+                    return _listenerOrientation;
+            }
+            set
+            {
+                lock (_listenerOrientationLockObject)
+                    _listenerOrientation = value;
+            }
+        } 
+        
         private static bool _useVirtualAudio = false;
         private static bool _virtualListenersChanged = false;
         
@@ -163,6 +188,11 @@ namespace Klak.Ndi.Audio
         /// Be aware: It's called from the Audio Thread! 
         /// </summary>
         public static UnityEvent<NativeArray<float>, int> OnAudioStreamUpdated = new UnityEvent<NativeArray<float>, int>();
+        
+        public static Vector3 ApplyOrientationTransform(Vector3 position)
+        {
+            return ListenerOrientation.position + (ListenerOrientation.rotation * position);
+        }
         
         public static bool ObjectBasedAudio 
         {
@@ -218,7 +248,7 @@ namespace Klak.Ndi.Audio
             {
                 if (channel < 0 || channel >= _virtualListeners.Count)
                     return;
-                _virtualListeners[channel].position = newPosition;
+                _virtualListeners[channel].rawPosition = newPosition;
                 _virtualListenersChanged = true;
             }
         }
@@ -269,7 +299,7 @@ namespace Klak.Ndi.Audio
             {
                 if (!_useVirtualAudio)
                     return null;
-                return _virtualListeners.Select( l => l.position).ToArray();
+                return _virtualListeners.Select( l => l.TransformedPosition).ToArray();
             }
         }
 
@@ -299,7 +329,7 @@ namespace Klak.Ndi.Audio
         {
             var newData = new VirtualListener
             {
-                position = relativePosition,
+                rawPosition = relativePosition,
                 volume = volume,
             };
 
@@ -708,16 +738,16 @@ namespace Klak.Ndi.Audio
                 if (_virtualListeners.Count == 0)
                     return;
 
-                float height = _virtualListeners[0].position.y;
+                float height = _virtualListeners[0].TransformedPosition.y;
                 _allListenersAreOnSameHeight = true;
 
                 unsafe
                 {
                     for (int i = 0; i < _virtualListeners.Count(); i++)
                     {
-                        BurstMethods.GetSphericalCoordinates(out _virtualListeners[i].sphericalCoordinate, _virtualListeners[i].position);
+                        BurstMethods.GetSphericalCoordinates(out _virtualListeners[i].sphericalCoordinate, _virtualListeners[i].TransformedPosition);
 
-                        if (Math.Abs(height - _virtualListeners[i].position.y) > 0.01f)
+                        if (Math.Abs(height - _virtualListeners[i].TransformedPosition.y) > 0.01f)
                             _allListenersAreOnSameHeight = false;
                     }
                 }
@@ -735,6 +765,7 @@ namespace Klak.Ndi.Audio
             lock (_listenerLockObject)
             {
                 float avgListenerDistanceFromCamera = GetAvgListenerDistanceFromCamera(cameraPosition);
+                var transformedCameraPosition = ApplyOrientationTransform(cameraPosition);
                 foreach (var audioSourceKVP in _audioSourcesData)
                 {
                     var audioSource = audioSourceKVP.Value;
@@ -742,7 +773,7 @@ namespace Klak.Ndi.Audio
                     
                     audioSource.CheckWeightsArray(_virtualListeners.Count);
                     
-                    float cameraDistanceToAudioSource = Vector3.Distance(audioSourceSettings.position, cameraPosition);
+                    float cameraDistanceToAudioSource = Vector3.Distance(audioSourceSettings.position, transformedCameraPosition);
                     
                     Array.Fill(audioSource.currentWeights, 0f);
                     
@@ -1002,10 +1033,12 @@ namespace Klak.Ndi.Audio
 
         private static float GetAvgListenerDistanceFromCamera(Vector3 cameraPosition)
         {
+            cameraPosition = ApplyOrientationTransform(cameraPosition);
+            
             float distanceFromCameraAvg = 0;
             foreach (var listener in _virtualListeners)
             {
-                float d = Vector3.Distance(cameraPosition + listener.position, cameraPosition);
+                float d = Vector3.Distance(cameraPosition + listener.TransformedPosition, cameraPosition);
                 distanceFromCameraAvg += d;
             }
 
