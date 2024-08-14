@@ -30,13 +30,18 @@ public sealed partial class NdiSender : MonoBehaviour, IAdmDataProvider
     
     [SerializeField] string _ndiName = "NDI Sender";
     string _ndiNameRuntime;
+    [Tooltip("If enabled, an AudioSource will be distributed to all Virtual listeners when it gets to the center of all of them.")]
     public bool playCenteredAudioSourcesOnAllSpeakers = true;
     public AudioMode audioMode = AudioMode.AudioListener;
+    [Tooltip("Default distance of the Virtual Listeners from the center")]
     public float virtualListenerDistance = 4;
+    [Tooltip("If enabled, the Distance Attenuation will be calculated based on Camera Position instead of the Virtual Listener Position.")]
     public bool useCameraPositionForVirtualAttenuation = false;
     public int maxObjectBasedChannels = 32;
     public SpeakerConfig customSpeakerConfig;
+    [Tooltip("Sending Frame Rate")]
     public FrameRateOptions frameRate = FrameRateOptions.Common_60;
+    [Tooltip("Limit render frame rate of this application")]
     public bool setRenderTargetFrameRate = true;
     
     public string ndiName
