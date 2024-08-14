@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.IO;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Klak.Ndi.Audio
 {
@@ -14,15 +15,16 @@ namespace Klak.Ndi.Audio
 
         [Header("Auto Load from File")]
         [SerializeField] private bool _autoConfigLoad = false;
-        public enum SourceType
+        public enum FileLocationType
         {
             StreamingAssets,
             Resources,
             FileSystem,
         }
-        public SourceType sourceType = SourceType.Resources;
+        public FileLocationType fileLocationType = FileLocationType.Resources;
         public string autoConfigFilePath = "config.asc";
         private DateTime _lastAutoConfigFileModifyTime;
+        public bool checkForUpdatesAtRuntime = true;
         
         public void ActivateAutoConfigLoad(bool active)
         {
@@ -63,25 +65,25 @@ namespace Klak.Ndi.Audio
                     return;
                 }
 
-                switch (sourceType)
+                switch (fileLocationType)
                 {
-                    case SourceType.StreamingAssets:
+                    case FileLocationType.StreamingAssets:
                         autoConfigFilePath = Path.Combine(Application.streamingAssetsPath, autoConfigFilePath);
                         break;
-                    case SourceType.Resources:
+                    case FileLocationType.Resources:
                         var json =  Resources.Load<TextAsset>(autoConfigFilePath).text;
                         LoadConfigFromJson(json);
                         return; 
                 }
                 
-                if (sourceType != SourceType.Resources && !File.Exists(autoConfigFilePath))
+                if (fileLocationType != FileLocationType.Resources && !File.Exists(autoConfigFilePath))
                 {
                     Debug.LogError("Config file not existing. Path="+autoConfigFilePath);
                     return;
                 }
 
                 LoadConfigFromFile(autoConfigFilePath);
-                if (sourceType != SourceType.Resources)
+                if (checkForUpdatesAtRuntime && fileLocationType != FileLocationType.Resources)
                 {
                     _lastAutoConfigFileModifyTime = File.GetLastWriteTime(autoConfigFilePath);
                     StartCoroutine(CheckForConfigFileChanges());
