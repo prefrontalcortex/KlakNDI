@@ -31,6 +31,7 @@ sealed class NdiSenderEditor : UnityEditor.Editor
     
     private AutoProperty customSpeakerConfig;
     private AutoProperty useCameraPositionForVirtualAttenuation;
+    private AutoProperty playCenteredAudioSourcesOnAllSpeakers;
 
     #pragma warning restore
 
@@ -153,6 +154,7 @@ sealed class NdiSenderEditor : UnityEditor.Editor
             else
                 EditorGUILayout.PropertyField(virtualListenerDistance);
             EditorGUILayout.PropertyField(useCameraPositionForVirtualAttenuation);
+            EditorGUILayout.PropertyField(playCenteredAudioSourcesOnAllSpeakers);
         }
         else
         {
