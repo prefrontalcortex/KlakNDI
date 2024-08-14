@@ -146,11 +146,15 @@ namespace Klak.Ndi.Audio
 
         public void LoadConfig(VirtualAudioSetupConfig config)
         {
+            _ndiSender.audioOrientation = NdiSender.AudioOrientationOption.Default;
             _ndiSender.audioMode = config.objectBasedAudio
                 ? NdiSender.AudioMode.ObjectBased
                 : NdiSender.AudioMode.CustomVirtualAudioSetup;
+
             VirtualAudio.ActivateObjectBasedAudio(config.objectBasedAudio, config.maxObjectBasedChannels);
             VirtualAudio.UseVirtualAudio = true;
+            VirtualAudio.ListenerOrientation = Pose.identity;
+            
             VirtualAudio.PlayCenteredAudioSourceOnAllListeners = config.centeredAudioOnAllSpeakers;
             _ndiSender.useCameraPositionForVirtualAttenuation = config.useCameraPositionForVirtualAttenuation;
             
