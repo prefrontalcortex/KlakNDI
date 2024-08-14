@@ -98,7 +98,7 @@ sealed class NdiSenderEditor : UnityEditor.Editor
 
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("Audio Settings", EditorStyles.boldLabel);
-        
+        EditorGUI.indentLevel++;
         // Show system audio settings
         int availableAudioChannels = Util.AudioChannels(AudioSettings.driverCapabilities);
         var audioSettings = AudioSettings.GetConfiguration();
@@ -141,16 +141,7 @@ sealed class NdiSenderEditor : UnityEditor.Editor
                         Debug.LogWarning("Spatializer plugin not found. If you just installed KlakNDI with Audio Support, please restart Unity. If this issue persists, please report a bug.");
                 }   
             }
-
-            if (audioModeEnum != NdiSender.AudioMode.ObjectBased)
-            {
-                EditorGUILayout.PropertyField(audioOrientation);
-                if (audioOrientation.Target.enumValueIndex == (int)NdiSender.AudioOrientationOption.CustomTransform)
-                {
-                    EditorGUILayout.PropertyField(customAudioOrientationTransform);
-                }
-            }
-            
+          
             if (audioModeEnum == NdiSender.AudioMode.SpeakerConfigAsset)
             {
                 if (customSpeakerConfig.Target.objectReferenceValue == null)
@@ -162,10 +153,23 @@ sealed class NdiSenderEditor : UnityEditor.Editor
             {
                 EditorGUILayout.PropertyField(maxObjectBasedChannels);
             }
-            else
-                EditorGUILayout.PropertyField(virtualListenerDistance);
-            EditorGUILayout.PropertyField(useCameraPositionForVirtualAttenuation);
-            EditorGUILayout.PropertyField(playCenteredAudioSourcesOnAllSpeakers);
+            else if (audioModeEnum == NdiSender.AudioMode.CustomVirtualAudioSetup)
+            {
+                EditorGUILayout.HelpBox("Use VirtualAudioSetup Component for virtual audio configuration or call from any script VirtualAudio.AddListener to add Channels.", MessageType.Info);    
+            }
+            else EditorGUILayout.PropertyField(virtualListenerDistance);
+            
+            if (audioModeEnum != NdiSender.AudioMode.ObjectBased && audioModeEnum != NdiSender.AudioMode.CustomVirtualAudioSetup)
+            {
+                EditorGUILayout.PropertyField(audioOrientation);
+                if (audioOrientation.Target.enumValueIndex == (int)NdiSender.AudioOrientationOption.CustomTransform)
+                {
+                    EditorGUILayout.PropertyField(customAudioOrientationTransform);
+                }
+
+                EditorGUILayout.PropertyField(useCameraPositionForVirtualAttenuation);
+                EditorGUILayout.PropertyField(playCenteredAudioSourcesOnAllSpeakers);
+            }
         }
         else
         {
@@ -274,7 +278,9 @@ sealed class NdiSenderEditor : UnityEditor.Editor
             GUILayout.TextField("https://github.com/keijiro/OscJack");
             GUI.enabled = true;
 #endif  
+
         }
+        EditorGUI.indentLevel--;
     }
 }
 
