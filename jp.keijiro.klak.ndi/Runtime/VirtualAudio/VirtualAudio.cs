@@ -211,6 +211,9 @@ namespace Klak.Ndi.Audio
         private static void Init()
         {
             Application.quitting += OnApplicationQuit;
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.playModeStateChanged += OnPlayModeChanged;
+#endif
             
             ClearAllAudioSourceData();
             ClearAllVirtualSpeakerListeners();
@@ -218,6 +221,17 @@ namespace Klak.Ndi.Audio
             AudioSettings.GetDSPBufferSize(out _dspBufferSize, out int _);
             _sampleRate = AudioSettings.outputSampleRate;
         }
+        
+#if UNITY_EDITOR
+        private static void OnPlayModeChanged(UnityEditor.PlayModeStateChange playMode)
+        {
+            if (playMode == UnityEditor.PlayModeStateChange.ExitingPlayMode)
+            {
+                UnityEditor.EditorApplication.playModeStateChanged -= OnPlayModeChanged;
+                OnApplicationQuit();
+            }
+        }
+#endif
         
         public static void ActivateAudioTestMode(bool active)
         {
@@ -275,8 +289,12 @@ namespace Klak.Ndi.Audio
 
         private static void OnApplicationQuit()
         {
-            if (_audioSendStream.IsCreated)
-                _audioSendStream.Dispose();
+            UseVirtualAudio = false; 
+            lock (_audioSourceLockObject)
+            {
+                if (_audioSendStream.IsCreated)
+                    _audioSendStream.Dispose();
+            }
         }
 
         public static void ClearAllVirtualSpeakerListeners()
@@ -408,6 +426,9 @@ namespace Klak.Ndi.Audio
         
         internal static void CheckSetup()
         {
+            if (!_useVirtualAudio)
+                return;
+            
             bool CheckAudioStreamSize(int size)
             {
                 if (!_audioSendStream.IsCreated || _audioSendStream.Length != size)
@@ -461,7 +482,8 @@ namespace Klak.Ndi.Audio
         {
             unsafe
             {
-                UnsafeUtility.MemClear(_audioSendStream.GetUnsafePtr(), _audioSendStream.Length * sizeof(float));
+                if (_audioSendStream.IsCreated)
+                    UnsafeUtility.MemClear(_audioSendStream.GetUnsafePtr(), _audioSendStream.Length * sizeof(float));
             }
         }
         
@@ -766,6 +788,9 @@ namespace Klak.Ndi.Audio
 
         internal static void UpdateAudioSourceToListenerWeights(Vector3 cameraPosition, bool useCameraPosForAttenuation = false)
         {
+            if (!_useVirtualAudio)
+                return;
+            
             UpdateVirtualListeners();
 
             if (ObjectBasedAudio)
