@@ -54,6 +54,8 @@ namespace Klak.Ndi.Audio
             _TmpSettings.spatialBlend = _audioSource.spatialBlend;
             _TmpSettings.volume = _audioSource.volume;
             _TmpSettings.forceToChannel = additionalSettings.forceToChannel ? additionalSettings.channel : -1;
+            _TmpSettings.minDistance = _audioSource.minDistance;
+            _TmpSettings.maxDistance = _audioSource.maxDistance;
         }
 
         private void OnDrawGizmosSelected()
