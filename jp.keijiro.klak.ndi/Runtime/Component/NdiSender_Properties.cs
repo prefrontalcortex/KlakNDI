@@ -121,13 +121,14 @@ public sealed partial class NdiSender : MonoBehaviour, IAdmDataProvider
     // Player never call it, so we use Awake instead of it.
 
     #if UNITY_EDITOR
+    internal static string AudioSpatializerExpectedName = "Passthrough Spatializer (NDI)";
+
     void OnValidate()
     {
         if (audioMode != AudioMode.AudioListener)
         {
-            var spatializerExpectedName = "Dummy Spatializer (NDI)";
-            AudioSettings.SetSpatializerPluginName(spatializerExpectedName);
-            if (AudioSettings.GetSpatializerPluginName() != spatializerExpectedName)
+            AudioSettings.SetSpatializerPluginName(AudioSpatializerExpectedName);
+            if (AudioSettings.GetSpatializerPluginName() != AudioSpatializerExpectedName)
                 Debug.LogWarning("Spatializer plugin not found. If you just installed KlakNDI with Audio Support, please restart Unity. If this issue persists, please report a bug.");
         }
 
