@@ -231,14 +231,13 @@ sealed class NdiSenderEditor : UnityEditor.Editor
 
             var vol = VirtualAudio.GetListenersVolume();
             var channelPos = ndiSender.GetChannelObjectPositions();
-            if (channels != null && vol != null)
+            if (channels != null)
             {
                 ChannelMeter.Draw(channels, (int channelNo) =>
                 {
                     if (ndiSender.audioMode == NdiSender.AudioMode.ObjectBased)
                     {
-                     
-                        GUILayout.Label("Pos: "+ channelPos[channelNo].ToString());
+                        GUILayout.Label("Pos: " + (channelNo < channelPos.Length ? channelPos[channelNo].ToString() : "-"));
                         //var r = EditorGUILayout.GetControlRect(false, 10f, GUILayout.Width(80f));
                         //GUI.backgroundColor = Color.white;
                         //EditorGUI.ProgressBar(r, vol[channelNo], vol[channelNo].ToString("P0"));   
@@ -249,7 +248,8 @@ sealed class NdiSenderEditor : UnityEditor.Editor
                         var r = EditorGUILayout.GetControlRect(false, 10f, GUILayout.Width(80f));
                         GUI.backgroundColor = Color.white;
                         
-                        EditorGUI.ProgressBar(r, vol[channelNo], vol[channelNo].ToString("P0"));
+                        if (vol != null && channelNo < vol.Length)
+                            EditorGUI.ProgressBar(r, vol[channelNo], vol[channelNo].ToString("P0"));
                     }
                 });
                 Repaint();
