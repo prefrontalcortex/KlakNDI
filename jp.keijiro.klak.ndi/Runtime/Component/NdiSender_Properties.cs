@@ -22,6 +22,7 @@ public sealed partial class NdiSender : MonoBehaviour, IAdmDataProvider
     }
     
     public Transform audioOrigin;
+    public bool addMissingAudioSourceListenersAtRuntime = false;
     
     [SerializeField] string _ndiName = "NDI Sender";
     string _ndiNameRuntime;
