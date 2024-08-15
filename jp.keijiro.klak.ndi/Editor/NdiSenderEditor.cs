@@ -10,6 +10,8 @@ namespace Klak.Ndi.Editor {
 [CustomEditor(typeof(NdiSender))]
 sealed class NdiSenderEditor : UnityEditor.Editor
 {
+    internal static string AudioSpatializerExpectedName = "Dummy Spatializer (NDI)";
+    
     static class Labels
     {
         public static Label NdiName = "NDI Name";
@@ -122,16 +124,15 @@ sealed class NdiSenderEditor : UnityEditor.Editor
                 nameof(AudioSourceListener) + " component will be received by the Virtual Listeners.", MessageType.Info);
             
             var spatializer = AudioSettings.GetSpatializerPluginName();
-            var spatializerExpectedName = "Dummy Spatializer (NDI)";
-            if (spatializer != spatializerExpectedName)
+            if (spatializer != AudioSpatializerExpectedName)
             {
                 EditorGUILayout.HelpBox("The Dummy Spatializer plugin is required in the Audio Settings to bypass any spatialized data modifications made by Unity.", MessageType.Error);
                 if (GUILayout.Button("Fix"))
                 {
-                    AudioSettings.SetSpatializerPluginName(spatializerExpectedName);
-                    if (AudioSettings.GetSpatializerPluginName() != spatializerExpectedName)
+                    AudioSettings.SetSpatializerPluginName(AudioSpatializerExpectedName);
+                    if (AudioSettings.GetSpatializerPluginName() != AudioSpatializerExpectedName)
                         Debug.LogWarning("Spatializer plugin not found. If you just installed KlakNDI with Audio Support, please restart Unity. If this issue persists, please report a bug.");
-                }   
+                }
             }
           
             if (audioModeEnum == NdiSender.AudioMode.SpeakerConfigAsset)
