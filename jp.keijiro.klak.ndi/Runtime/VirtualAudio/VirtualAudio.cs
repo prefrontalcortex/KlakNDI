@@ -137,7 +137,7 @@ namespace Klak.Ndi.Audio
         private static object _listenerOrientationLockObject = new object();
         private static Pose _listenerOrientation = Pose.identity;
 
-        public static Pose ListenerOrientation
+        public static Pose AudioOrigin
         {
             get
             {
@@ -191,7 +191,7 @@ namespace Klak.Ndi.Audio
         
         public static Vector3 ApplyOrientationTransform(Vector3 position)
         {
-            return ListenerOrientation.position + (ListenerOrientation.rotation * position);
+            return AudioOrigin.position + (AudioOrigin.rotation * position);
         }
         
         public static bool ObjectBasedAudio 

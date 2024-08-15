@@ -26,7 +26,7 @@ sealed class NdiSenderEditor : UnityEditor.Editor
     private AutoProperty virtualListenerDistance;
     private AutoProperty maxObjectBasedChannels;
     private AutoProperty audioOrientation;
-    private AutoProperty customAudioOrientationTransform;
+    private AutoProperty audioOrigin;
     
     private AutoProperty setRenderTargetFrameRate;
     private AutoProperty frameRate;
@@ -161,11 +161,7 @@ sealed class NdiSenderEditor : UnityEditor.Editor
             
             if (audioModeEnum != NdiSender.AudioMode.ObjectBased && audioModeEnum != NdiSender.AudioMode.CustomVirtualAudioSetup)
             {
-                EditorGUILayout.PropertyField(audioOrientation);
-                if (audioOrientation.Target.enumValueIndex == (int)NdiSender.AudioOrientationOption.CustomTransform)
-                {
-                    EditorGUILayout.PropertyField(customAudioOrientationTransform);
-                }
+                EditorGUILayout.PropertyField(audioOrigin);
 
                 EditorGUILayout.PropertyField(useCameraPositionForVirtualAttenuation);
                 EditorGUILayout.PropertyField(playCenteredAudioSourcesOnAllSpeakers);

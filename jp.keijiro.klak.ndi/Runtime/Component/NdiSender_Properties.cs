@@ -21,12 +21,7 @@ public sealed partial class NdiSender : MonoBehaviour, IAdmDataProvider
         CustomVirtualAudioSetup
     }
     
-    public enum AudioOrientationOption { Default, Dome, CustomTransform}
-    [Tooltip("Default: Fixed to the scene center.\n" +
-             "Dome: Fixed to the scene center, but the Virtual Listener are rotated by 180° to match dome rendering.\n" +
-             "Custom Transform: position and rotation offset by a custom transform.")] 
-    public AudioOrientationOption audioOrientation = AudioOrientationOption.Default;
-    public Transform customAudioOrientationTransform;
+    public Transform audioOrigin;
     
     [SerializeField] string _ndiName = "NDI Sender";
     string _ndiNameRuntime;
