@@ -589,6 +589,16 @@ namespace Klak.Ndi.Audio
                         gains[i] = 0f;
                     }
                 }
+
+                // Transform ObjectBasedPosition to relative position from Origin
+                var origin = AudioOrigin;
+                for (int i = 0; i < _maxObjectBasedChannels; i++)
+                {
+                    var pos = positions[i];
+                    pos = pos - origin.position;
+                    pos = Quaternion.Inverse(origin.rotation) * pos;
+                    positions[i] = pos;
+                }
             }
 
             return true;
