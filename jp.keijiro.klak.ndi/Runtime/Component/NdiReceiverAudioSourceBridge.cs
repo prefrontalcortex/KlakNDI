@@ -71,7 +71,7 @@ namespace Klak.Ndi
 				if (_lastFrameUpdate < AudioSettings.dspTime)
 				{
 					//Debug.Log("AudioSourceBridge: Updating audio data. " + _lastFrameUpdate + " < " + AudioSettings.dspTime );
-					if (!_handler.PullNextAudioFrame(data.Length, channels))
+					if (!_handler.PullNextAudioFrame(data.Length / channels, channels))
 					{
 						Array.Fill(data, 0f);
 					}
