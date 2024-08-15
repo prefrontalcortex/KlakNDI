@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Klak.Ndi.Audio;
 using UnityEditor;
 using UnityEngine;
@@ -14,6 +15,9 @@ namespace Klak.Ndi.Editor
         private bool _allHasListener = false;
         private bool[] _hasListener;
         
+        private NdiSender[] _ndiSenders;
+        private bool _ignoreListenerCheck = false;
+        
         private void OnEnable()
         {
             if (targets == null || targets.Length == 0)
@@ -25,10 +29,13 @@ namespace Klak.Ndi.Editor
             _defaultEditor = CreateEditor(targets, forType);
             if (!_defaultEditor)
                 return;
-            
-            
+
             if (!Application.isPlaying)
+            {
+                _ndiSenders = FindObjectsOfType<NdiSender>();
+                _ignoreListenerCheck = _ndiSenders.Any(sender => sender.addMissingAudioSourceListenersAtRuntime);
                 UpdateChecks();
+            }
         }
 
         private void OnDisable()
@@ -67,7 +74,7 @@ namespace Klak.Ndi.Editor
             
             _defaultEditor.OnInspectorGUI();
             
-            if (!_allHasListener && ! Application.isPlaying)
+            if (!_ignoreListenerCheck && !_allHasListener && ! Application.isPlaying)
             {
                 GUILayout.Space(30);
                 GUI.backgroundColor = Color.cyan;
