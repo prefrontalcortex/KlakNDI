@@ -302,6 +302,16 @@ namespace Klak.Ndi.Audio
                 return _virtualListeners.Select( l => l.TransformedPosition).ToArray();
             }
         }
+        
+        public static Vector3[] GetListenersRelativePositions()
+        {
+            lock (_listenerLockObject)
+            {
+                if (!_useVirtualAudio)
+                    return null;
+                return _virtualListeners.Select( l => l.rawPosition).ToArray();
+            }
+        }
 
         public static void SetListenerVolume(int channelIndex, float volume)
         {

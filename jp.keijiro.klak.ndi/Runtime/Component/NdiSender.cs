@@ -94,13 +94,17 @@ public sealed partial class NdiSender : MonoBehaviour
         
         var listenersPositions = VirtualAudio.GetListenersPositions();
         var listenerVolumes = VirtualAudio.GetListenersVolume();
+        
+        if (listenersPositions == null || listenerVolumes == null)
+            return;
+        
         Gizmos.color = Color.yellow;
         int listIndex = 0;
         foreach (var listener in listenersPositions)
         {
-            Gizmos.DrawWireSphere(transform.position + listener, 1f);
+            Gizmos.DrawWireSphere(listener, 1f);
             // Add text label
-            UnityEditor.Handles.Label(transform.position + listener + new Vector3(2f, 0, 0f), "Channel: "+listIndex+ System.Environment.NewLine + "Volume: "+listenerVolumes[listIndex]);
+            UnityEditor.Handles.Label(listener + new Vector3(2f, 0, 0f), "Channel: "+listIndex+ System.Environment.NewLine + "Volume: "+listenerVolumes[listIndex]);
             listIndex++;
         }
     }
