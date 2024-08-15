@@ -160,6 +160,12 @@ namespace Klak.Ndi.Audio
         private static bool _testMode = false;
         private static int _currentTestChannel = 0;
         private static bool _allListenersAreOnSameHeight = false;
+
+        public enum AudioSpatializingCalculationMode
+        {
+            StrongDirectionalPanning,
+            DistanceAttenuationBased
+        }
         
         private static readonly Dictionary<int, AudioSourceData> _audioSourcesData = new Dictionary<int, AudioSourceData>();
         private static readonly List<VirtualListener> _virtualListeners = new List<VirtualListener>();
@@ -198,6 +204,8 @@ namespace Klak.Ndi.Audio
         {
             get => _objectBasedAudio;
         }
+        
+        public static AudioSpatializingCalculationMode spatializingCalculationMode = AudioSpatializingCalculationMode.StrongDirectionalPanning;
         
         private static bool _objectBasedAudio = false;
         private static int _maxObjectBasedChannels = 16;
@@ -840,19 +848,29 @@ namespace Klak.Ndi.Audio
                         for (int i = 0; i < audioSource.currentWeights.Length; i++)
                             audioSource.currentWeights[i] *= volume;
                     }
-                    
-                    if (_allListenersAreOnSameHeight)
+
+                    switch (spatializingCalculationMode)
                     {
-                        // Using simple azimuth based panning
-                        CalculateWeightsBasedOnSimplePlanarAzimuthPanning(audioSource.currentWeights, audioSourceSettings, blendToCenter, spatialBlend);
+                        
+                        case AudioSpatializingCalculationMode.StrongDirectionalPanning:
+                            if (_allListenersAreOnSameHeight)
+                            {
+                                // Using simple azimuth based panning
+                                CalculateWeightsBasedOnSimplePlanarAzimuthPanning(audioSource.currentWeights, audioSourceSettings, blendToCenter, spatialBlend);
+                            }
+                            else
+                            {
+                                // TODO: height panning !! Currently we ignore the height of the listeners
+                                CalculateWeightsBasedOnSimplePlanarAzimuthPanning(audioSource.currentWeights, audioSourceSettings, blendToCenter, spatialBlend);
+                            } 
+             
+                            ApplyDistanceAttenuationAndSourceVolumeToWeights();
+                            break;
+                        case AudioSpatializingCalculationMode.DistanceAttenuationBased:
+                            CalculateWeightsBasedOnAttenuation(audioSource.currentWeights, audioSourceSettings, blendToCenter, spatialBlend);
+                            break;
                     }
-                    else
-                    {
-                        // TODO: height panning !! Currently we ignore the height of the listeners
-                        CalculateWeightsBasedOnSimplePlanarAzimuthPanning(audioSource.currentWeights, audioSourceSettings, blendToCenter, spatialBlend);
-                    } 
-     
-                    ApplyDistanceAttenuationAndSourceVolumeToWeights();
+                    
                 }
             }
         }
@@ -1026,6 +1044,56 @@ namespace Klak.Ndi.Audio
             
         }
 
+        private static void CalculateWeightsBasedOnAttenuation(float[] weights, AudioSourceSettings audioSourceSettings, float centerBlend, float spatialBlend)
+        {
+            for (int i = 0; i < _virtualListeners.Count; i++)
+            {
+                var distance = Vector3.Distance(audioSourceSettings.position, _virtualListeners[i].TransformedPosition);
+                var attenuation = GetDistanceAttenuation(distance, audioSourceSettings);
+                weights[i] = attenuation * _virtualListeners[i].volume;
+            }
+
+            return;
+
+
+
+            float sum = 0;
+            float activeListeners = 0f;
+            for (int i = 0; i < _virtualListeners.Count; i++)
+                if (_virtualListeners[i].volume > 0f)
+                    activeListeners++;
+            
+            for (int i = 0; i < _virtualListeners.Count; i++)
+            {
+                var distance = Vector3.Distance(audioSourceSettings.position, _virtualListeners[i].TransformedPosition);
+                var attenuation =  GetDistanceAttenuation(distance, audioSourceSettings);
+
+                float w = attenuation;
+                
+                w = Mathf.Lerp(w, 1f / activeListeners, centerBlend);
+                
+                w = Mathf.Lerp(w, 1f, 1f - spatialBlend);
+                w *= _virtualListeners[i].volume;
+                
+                if (w > 0f)
+                    sum += (w * w);
+                weights[i] = w;
+            }
+
+            sum = Mathf.Sqrt(sum);
+            float a = Mathf.Pow(10f, -6f / 20f) * 2f;
+            float k = a * sum;
+            for (int i = 0; i < weights.Length; i++)
+            {
+                if (weights[i] == 0f)
+                    continue;
+                float amp = (weights[i] * a) / k;
+                weights[i] = amp;
+            }
+            
+        }
+
+        
 #region Helpers
         private static void FindLeftAndRightListenerBasedOnAzimuth(SphericalCoordinate source, out float leftAngle,
             out VirtualListener leftListener, out float rightAngle, out VirtualListener rightListener, out float angleBetweenLeftAndRight)

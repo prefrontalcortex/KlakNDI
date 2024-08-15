@@ -31,6 +31,9 @@ public sealed partial class NdiSender : MonoBehaviour, IAdmDataProvider
     [Tooltip("If enabled, an AudioSource will be distributed to all Virtual listeners when it gets to the center of all of them.")]
     public bool playCenteredAudioSourcesOnAllSpeakers = true;
     public AudioMode audioMode = AudioMode.AudioListener;
+    
+    public VirtualAudio.AudioSpatializingCalculationMode spatializingCalculationMode = VirtualAudio.AudioSpatializingCalculationMode.StrongDirectionalPanning;
+    
     [Tooltip("Default distance of the Virtual Listeners from the center")]
     public float virtualListenerDistance = 4;
     [FormerlySerializedAs("useCameraPositionForVirtualAttenuation")] [Tooltip("If enabled, the Distance Attenuation will be calculated based on AudioOrigin Position instead of the Virtual Listener Position.")]

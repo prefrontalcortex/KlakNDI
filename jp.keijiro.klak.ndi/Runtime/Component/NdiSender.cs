@@ -221,6 +221,13 @@ public sealed partial class NdiSender : MonoBehaviour
     
     private void Update()
     {
+        lock (_lockObj)
+        {
+            _listenerPosition = transform.position;
+        }
+        
+        VirtualAudio.spatializingCalculationMode = spatializingCalculationMode;
+        
         if (audioOrigin)
             VirtualAudio.AudioOrigin = new Pose(audioOrigin.position, audioOrigin.rotation);
         else
