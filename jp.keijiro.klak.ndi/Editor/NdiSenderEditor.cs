@@ -27,7 +27,8 @@ sealed class NdiSenderEditor : UnityEditor.Editor
     private AutoProperty maxObjectBasedChannels;
     private AutoProperty audioOrientation;
     private AutoProperty audioOrigin;
-    
+
+    private AutoProperty addMissingAudioSourceListenersAtRuntime;
     private AutoProperty setRenderTargetFrameRate;
     private AutoProperty frameRate;
     
@@ -51,16 +52,7 @@ sealed class NdiSenderEditor : UnityEditor.Editor
         _audioSourcesInScene = Array.Empty<AudioSource>();
         if (((NdiSender.AudioMode)audioMode.Target.enumValueIndex) != NdiSender.AudioMode.AudioListener)
         {
-            var audioSources = GameObject.FindObjectsByType<AudioSource>( FindObjectsInactive.Include, FindObjectsSortMode.None);
-            var audioSourcesList = new List<AudioSource>();
-            foreach (var a in audioSources)
-            {
-                if (a.GetComponent<AudioSourceListener>() == null)
-                {
-                    audioSourcesList.Add(a);
-                }
-            }
-            _audioSourcesInScene = audioSourcesList.ToArray();
+            _audioSourcesInScene = NdiSender.SearchForAudioSourcesWithMissingListener();
         }
     }
 
@@ -199,26 +191,33 @@ sealed class NdiSenderEditor : UnityEditor.Editor
                 }
                 GUILayout.FlexibleSpace();
                 //EditorGUILayout.LabelField(_audioSourcesInScene[i].name);
-                if (GUILayout.Button("Add AudioSourceListener"))
+                if (!addMissingAudioSourceListenersAtRuntime.Target.boolValue)
                 {
-                    _audioSourcesInScene[i].gameObject.AddComponent<AudioSourceListener>();
-                    ArrayUtility.RemoveAt(ref _audioSourcesInScene, i);
-                    return;
+                    if (GUILayout.Button("Add AudioSourceListener"))
+                    {
+                        _audioSourcesInScene[i].gameObject.AddComponent<AudioSourceListener>();
+                        ArrayUtility.RemoveAt(ref _audioSourcesInScene, i);
+                        return;
+                    }
                 }
                 
                 EditorGUILayout.EndHorizontal();
             }
             EditorGUILayout.EndScrollView();
             EditorGUILayout.Space();
-            if (GUILayout.Button("Add to all"))
+            if (!addMissingAudioSourceListenersAtRuntime.Target.boolValue)
             {
-                foreach (var audioSource in _audioSourcesInScene)
+                if (GUILayout.Button("Add to all"))
                 {
-                    audioSource.gameObject.AddComponent<AudioSourceListener>();
+                    foreach (var audioSource in _audioSourcesInScene)
+                    {
+                        audioSource.gameObject.AddComponent<AudioSourceListener>();
+                    }
+
+                    _audioSourcesInScene = Array.Empty<AudioSource>();
                 }
-                _audioSourcesInScene = Array.Empty<AudioSource>();
             }
-            
+
             GUILayout.FlexibleSpace();
             
             EditorGUILayout.EndVertical();

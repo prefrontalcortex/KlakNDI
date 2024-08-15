@@ -245,6 +245,20 @@ public sealed partial class NdiSender : MonoBehaviour
     {
         VirtualAudio.UpdateAudioSourceToListenerWeights( _listenerPosition, useCameraPositionForVirtualAttenuation);
     }
+    
+    internal static AudioSource[] SearchForAudioSourcesWithMissingListener()
+    {
+        var audioSources = GameObject.FindObjectsByType<AudioSource>( FindObjectsInactive.Include, FindObjectsSortMode.None);
+        var audioSourcesList = new List<AudioSource>();
+        foreach (var a in audioSources)
+        {
+            if (a.GetComponent<AudioSourceListener>() == null)
+            {
+                audioSourcesList.Add(a);
+            }
+        }
+        return audioSourcesList.ToArray();
+    }
 
     public float[] GetChannelVisualisations()
     {
@@ -772,7 +786,17 @@ public sealed partial class NdiSender : MonoBehaviour
 
     #region MonoBehaviour implementation
 
-    void OnEnable() => ResetState();
+    void OnEnable()
+    {
+        if (Application.isPlaying && addMissingAudioSourceListenersAtRuntime)
+        {
+            var audioSources = SearchForAudioSourcesWithMissingListener();
+            foreach (var audioSource in audioSources)
+                audioSource.gameObject.AddComponent<AudioSourceListener>();
+        }
+        ResetState();
+    }
+
     void OnDisable() => Restart(false);
 
     void OnDestroy()
