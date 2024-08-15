@@ -25,11 +25,10 @@ namespace Klak.Ndi
 #if !OSC_JACK
         [Header("[Please add OSC JACK to your project > https://github.com/keijiro/OscJack]")]
 #endif
-        [SerializeField] private AdmSettings _settings = new AdmSettings(0.1f, 10f);
+        public AdmSettings _settings = new AdmSettings(0.1f, 10f);
         
 #if OSC_JACK
-
-        [SerializeField] private OscConnection _connection = null;
+        public OscConnection _connection = null;
 
         private OscClient _client;
         private OscConnection _customConnection;
