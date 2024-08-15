@@ -171,6 +171,7 @@ sealed class NdiSenderEditor : UnityEditor.Editor
             }
         }
         
+        EditorGUILayout.PropertyField(addMissingAudioSourceListenersAtRuntime);
         serializedObject.ApplyModifiedProperties();
 
         if (!Application.isPlaying && _audioSourcesInScene.Length > 0 && audioModeEnum != NdiSender.AudioMode.AudioListener)
