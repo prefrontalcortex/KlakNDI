@@ -524,10 +524,11 @@ namespace Klak.Ndi.Audio
             {
                 samples = _dspBufferSize;
 
+                CheckSetup();
+                
                 if (_testMode)
                 {
                     // Begin test mode
-                    CheckSetup();
                     
                     AddTestSoundToAudioStream();
 
@@ -562,6 +563,7 @@ namespace Klak.Ndi.Audio
                 if (_audioSourcesData.Count == 0)
                 {
                     stream = _audioSendStream;
+                    ClearAudioStream();
                     return false;
                 }
 
