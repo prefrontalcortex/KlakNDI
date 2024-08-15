@@ -223,23 +223,12 @@ public sealed partial class NdiSender : MonoBehaviour
         {
             _listenerPosition = transform.position;
         }
-
-        switch (audioOrientation)
-        {
-            case AudioOrientationOption.Default:
-                VirtualAudio.ListenerOrientation = Pose.identity;
-                break;
-            case AudioOrientationOption.Dome:
-                VirtualAudio.ListenerOrientation = new Pose(Vector3.zero, Quaternion.Euler(0f, 180f, 0f));
-                break;
-            case AudioOrientationOption.CustomTransform:
-                if (customAudioOrientationTransform)
-                    VirtualAudio.ListenerOrientation = new Pose(customAudioOrientationTransform.position, customAudioOrientationTransform.rotation);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
-        }
-
+        
+        if (audioOrigin)
+            VirtualAudio.AudioOrigin = new Pose(audioOrigin.position, audioOrigin.rotation);
+        else
+            VirtualAudio.AudioOrigin = Pose.identity;
+        
         if (audioMode != AudioMode.CustomVirtualAudioSetup)
             VirtualAudio.PlayCenteredAudioSourceOnAllListeners = playCenteredAudioSourcesOnAllSpeakers;
         if (_audioMode != audioMode || _lastVirtualListenerDistance != virtualListenerDistance)
