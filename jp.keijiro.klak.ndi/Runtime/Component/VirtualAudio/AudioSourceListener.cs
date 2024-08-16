@@ -79,16 +79,10 @@ namespace Klak.Ndi.Audio
             if (listenersPositions.Length != tmpListenerWeights.Length)
                 return;
 
-            var audioListener = GameObject.FindObjectOfType<AudioListener>();
-            if (!audioListener)
-                return;
-            
-            var listenerPos = audioListener.transform.position;
-
             for (int i = 0; i < listenersPositions.Length; i++)
             {
                 Gizmos.color = tmpListenerWeights[i] > 0 ? new Color(0, 1, 0, 0.5f) : new Color(1, 0, 0, 0.5f);
-                listenersPositions[i] = listenersPositions[i] + listenerPos;
+                listenersPositions[i] = listenersPositions[i];
                 Gizmos.DrawWireSphere( listenersPositions[i], 1f);
             }
             
