@@ -40,7 +40,7 @@ public class SpeakersVisualisation : MonoBehaviour
             _speakers[i].gameObject.SetActive(i < speakerPositions.Length);
         
         for (int i = 0; i < speakerPositions.Length; i++)
-            _speakers[i].SetPositionAndRotation(speakerPositions[i], speakerPositions[i] == Vector3.zero ? Quaternion.identity : Quaternion.LookRotation(-speakerPositions[i].normalized));
+            _speakers[i].SetPositionAndRotation(speakerPositions[i], speakerPositions[i] == Vector3.zero ? Quaternion.identity : Quaternion.LookRotation(_ndiReceiver.transform.position - speakerPositions[i].normalized));
 
         var speakerLevel = _ndiReceiver.GetChannelVisualisations();
         if (speakerLevel == null)
