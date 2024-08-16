@@ -38,11 +38,13 @@ public class VirtualListenerVisualisation : MonoBehaviour
         }
 
 
+        var centerPos = VirtualAudio.AudioOrigin.position;
+        
         for (int i = 0; i < _speakers.Count; i++)
             _speakers[i].gameObject.SetActive(i < listenersPositions.Length);
         
         for (int i = 0; i < listenersPositions.Length; i++)
-            _speakers[i].SetPositionAndRotation(listenersPositions[i], listenersPositions[i] == Vector3.zero ? Quaternion.LookRotation(Vector3.back) : Quaternion.LookRotation(-listenersPositions[i].normalized));
+            _speakers[i].SetPositionAndRotation(listenersPositions[i], listenersPositions[i] == Vector3.zero ? Quaternion.LookRotation(Vector3.back) : Quaternion.LookRotation(centerPos-listenersPositions[i].normalized));
 
         var speakerLevel = _ndiSender.GetChannelVisualisations();
         if (speakerLevel == null)
