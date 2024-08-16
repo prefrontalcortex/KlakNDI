@@ -575,7 +575,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 						var audioFrameData = _currentAudioFrame.GetAllChannelsArray();
 				
 						var audioFrameSamplesReaded = _audioFramesBuffer[frameIndex].channelSamplesReaded[0];
-						int samplesToCopy = Mathf.Min(frameSize, _currentAudioFrame.samplesPerChannel - audioFrameSamplesReaded);
+						int samplesToCopy = Mathf.Min(frameSize - samplesCopied, _currentAudioFrame.samplesPerChannel - audioFrameSamplesReaded);
 
 						for (int i = 0; i < _currentAudioFrame.noChannels; i++)
 							_currentAudioFrame.channelSamplesReaded[i] += samplesToCopy;
@@ -612,7 +612,6 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 			return true;
 		}
-		
 	}
 	
 	internal bool FillAudioChannelData(ref float[] data, int channelNo, int channelCountInData, bool dataContainsSpatialData = false)
