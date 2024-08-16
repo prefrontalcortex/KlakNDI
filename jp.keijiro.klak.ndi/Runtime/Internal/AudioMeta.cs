@@ -91,8 +91,6 @@ namespace Klak.Ndi
             foreach (var pos in listenerPositions)
             {
                 var speakerNode = xmlMeta.CreateElement("Speaker");
-                //var relativePosition = speaker.transform.position - listenerPosition;
-                //var relativePosition = speaker.position - listenerPosition;
                 speakerNode.SetAttribute("x", pos.x.ToString(CultureInfo.InvariantCulture));
                 speakerNode.SetAttribute("y", pos.y.ToString(CultureInfo.InvariantCulture));
                 speakerNode.SetAttribute("z", pos.z.ToString(CultureInfo.InvariantCulture));

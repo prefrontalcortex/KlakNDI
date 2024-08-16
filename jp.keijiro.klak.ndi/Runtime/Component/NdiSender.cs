@@ -437,7 +437,6 @@ public sealed partial class NdiSender : MonoBehaviour
             
             fixed (float* p = samples)
             {
-                //PluginEntry.SetAudioData(_plugin, (IntPtr)p);
                 var frame = new Interop.AudioFrame
                 {
                     SampleRate = sampleRate,
@@ -453,8 +452,7 @@ public sealed partial class NdiSender : MonoBehaviour
                         _send.SendAudio(frame);
                 }
             }
-
-            //if (audioEnabled && pluginReady) PluginEntry.SendAudio(_plugin);
+            
         }
     }
 
