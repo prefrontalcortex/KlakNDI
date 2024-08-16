@@ -295,6 +295,9 @@ public sealed partial class NdiSender : MonoBehaviour
 
     private void SendObjectBasedChannels()
     {
+        if (!VirtualAudio.UseVirtualAudio)
+            return;
+        
         lock (_channelObjectLock)
         {
             bool hasDataToSend = VirtualAudio.GetObjectBasedAudio(out var stream, out int samplesCount, _objectBasedChannels, _objectBasedPositions, _objectBasedGains);
@@ -373,6 +376,9 @@ public sealed partial class NdiSender : MonoBehaviour
 
     private void SendCustomListenerData()
     {
+        if (!VirtualAudio.UseVirtualAudio)
+            return;
+        
         var mixedAudio = VirtualAudio.GetMixedAudio(out var stream, out int samplesCount, out var tmpVus);
         lock (_channelVisualisationsLock)
         {
@@ -671,41 +677,44 @@ public sealed partial class NdiSender : MonoBehaviour
     internal void ResetState(bool willBeActive)
     {
         _audioMode = audioMode;
-        CheckAudioListener(willBeActive);
-        
-        if (audioMode != AudioMode.CustomVirtualAudioSetup)
-            ClearVirtualSpeakerListeners();
-
-        _lastVirtualListenerDistance = virtualListenerDistance;
-        switch (audioMode)
+        if (Application.isPlaying)
         {
-            case AudioMode.AudioListener:
-                lock (_channelVisualisationsLock)
-                    _channelVisualisations = null;
-                break;
-            case AudioMode.VirtualQuad:
-                CreateAudioSetup_Quad();
-                break;
-            case AudioMode.Virtual5Point1:
-                CreateAudioSetup_5point1();
-                break;
-            case AudioMode.Virtual7Point1:
-                CreateAudioSetup_7point1();
-                break;
-            case AudioMode.Virtual32Array:
-                CreateAudioSetup_32Array();
-                break;
-            case AudioMode.SpeakerConfigAsset:
-                CreateAudioSetup_bySpeakerConfig();
-                break;
-            case AudioMode.ObjectBased:
-                VirtualAudio.UseVirtualAudio = true;
-                VirtualAudio.ActivateObjectBasedAudio(true, maxObjectBasedChannels);
-                break;
-            case AudioMode.CustomVirtualAudioSetup:
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
+            CheckAudioListener(willBeActive);
+
+            if (audioMode != AudioMode.CustomVirtualAudioSetup)
+                ClearVirtualSpeakerListeners();
+
+            _lastVirtualListenerDistance = virtualListenerDistance;
+            switch (audioMode)
+            {
+                case AudioMode.AudioListener:
+                    lock (_channelVisualisationsLock)
+                        _channelVisualisations = null;
+                    break;
+                case AudioMode.VirtualQuad:
+                    CreateAudioSetup_Quad();
+                    break;
+                case AudioMode.Virtual5Point1:
+                    CreateAudioSetup_5point1();
+                    break;
+                case AudioMode.Virtual7Point1:
+                    CreateAudioSetup_7point1();
+                    break;
+                case AudioMode.Virtual32Array:
+                    CreateAudioSetup_32Array();
+                    break;
+                case AudioMode.SpeakerConfigAsset:
+                    CreateAudioSetup_bySpeakerConfig();
+                    break;
+                case AudioMode.ObjectBased:
+                    VirtualAudio.UseVirtualAudio = true;
+                    VirtualAudio.ActivateObjectBasedAudio(true, maxObjectBasedChannels);
+                    break;
+                case AudioMode.CustomVirtualAudioSetup:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
         }
         
         // Camera capture coroutine termination
