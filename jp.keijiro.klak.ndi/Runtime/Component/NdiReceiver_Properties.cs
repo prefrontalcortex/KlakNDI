@@ -1,4 +1,5 @@
 using System;
+using Klak.Ndi.Interop;
 using UnityEngine;
 
 namespace Klak.Ndi {
@@ -100,6 +101,11 @@ public sealed partial class NdiReceiver : MonoBehaviour, IAdmDataProvider
     
     #endregion
   
+    	
+    public ReceiverPerformance PerformanceStatistic => _performance;
+    public ReceiverPerformance DroppedStatistic => _dropped;
+    public ReceiverQueue QueueStatistic => _queue;
+    
     private event AdmDataChangedDelegate _onAdmDataChanged;
 
     private object _admEventLock = new object();

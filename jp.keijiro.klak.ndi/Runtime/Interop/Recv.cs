@@ -79,6 +79,12 @@ public class Recv : SafeHandleZeroOrMinusOneIsInvalid
     public void AudioFrameFromInterleaved(ref AudioFrameInterleaved source, ref AudioFrame dest)
         => _AudioFrameFromInterleaved(ref source, ref dest);
 
+    public void GetPerformance(ref ReceiverPerformance p_total, ref ReceiverPerformance p_dropped)
+        => _Recv_get_performance(this, ref p_total, ref p_dropped);
+
+    public void GetQueue(ref ReceiverQueue p_total)
+        => _Recv_get_queue(this, ref p_total);
+    
     #endregion
 
     #region Unmanaged interface
@@ -133,6 +139,13 @@ public class Recv : SafeHandleZeroOrMinusOneIsInvalid
     [DllImport(Config.DllName, EntryPoint = "NDIlib_util_audio_from_interleaved_32f_v2")]
     static extern void _AudioFrameFromInterleaved(ref AudioFrameInterleaved src, ref AudioFrame dst);
 
+    // recv_get_performance 
+    [DllImport(Config.DllName, EntryPoint = "NDIlib_recv_get_performance")]
+    internal static extern void _Recv_get_performance(Recv p_instance, ref ReceiverPerformance p_total, ref ReceiverPerformance p_dropped);
+
+    // recv_get_queue 
+    [DllImport(Config.DllName, EntryPoint = "NDIlib_recv_get_queue")]
+    internal static extern void _Recv_get_queue(Recv p_instance, ref ReceiverQueue p_total);
     #endregion
 }
 
