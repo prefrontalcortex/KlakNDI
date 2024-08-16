@@ -25,6 +25,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	FormatConverter _converter;
 	MaterialPropertyBlock _override;
 	Interop.Bandwidth _lastBandwidth;
+	private ReceiverPerformance _performance;
+	private ReceiverPerformance _dropped;
+	private ReceiverQueue _queue;
 	
     void PrepareReceiverObjects()
     {
@@ -77,6 +80,12 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 	private void Update()
 	{
+		if (_recv != null)
+		{
+			_recv.GetPerformance(ref _performance, ref _dropped);
+			_recv.GetQueue(ref _queue);
+		}
+		
 		if (_settingsChanged)
 		{
 			//ReadAudioMetaData(audio.Metadata);

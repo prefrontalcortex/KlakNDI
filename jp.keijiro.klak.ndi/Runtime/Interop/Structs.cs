@@ -3,6 +3,37 @@ using System.Runtime.InteropServices;
 
 namespace Klak.Ndi.Interop {
 
+// This allows you determine the current performance levels of the receiving to be able to detect whether frames have been dropped
+[Serializable]
+[StructLayoutAttribute(LayoutKind.Sequential)]
+public struct ReceiverPerformance
+{
+    // The number of video frames
+    public Int64	video_frames;
+
+    // The number of audio frames
+    public Int64	audio_frames;
+
+    // The number of metadata frames
+    public Int64	metadata_frames;
+}
+
+// Get the current queue depths
+[Serializable]
+[StructLayoutAttribute(LayoutKind.Sequential)]
+public struct ReceiverQueue
+{
+    // The number of video frames
+    public int	video_frames;
+
+    // The number of audio frames
+    public int	audio_frames;
+
+    // The number of metadata frames
+    public int	metadata_frames;
+}    
+    
+    
 // Packet type enumeration (equivalent to NDIlib_frame_type_e)
 public enum FrameType
 {
