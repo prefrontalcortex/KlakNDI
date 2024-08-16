@@ -782,16 +782,16 @@ namespace Klak.Ndi.Audio
                 if (_virtualListeners.Count == 0)
                     return;
 
-                float height = _virtualListeners[0].TransformedPosition.y;
+                float height = _virtualListeners[0].rawPosition.y;
                 _allListenersAreOnSameHeight = true;
 
                 unsafe
                 {
                     for (int i = 0; i < _virtualListeners.Count(); i++)
                     {
-                        BurstMethods.GetSphericalCoordinates(out _virtualListeners[i].sphericalCoordinate, _virtualListeners[i].TransformedPosition);
+                        BurstMethods.GetSphericalCoordinates(out _virtualListeners[i].sphericalCoordinate, _virtualListeners[i].rawPosition);
 
-                        if (Math.Abs(height - _virtualListeners[i].TransformedPosition.y) > 0.01f)
+                        if (Math.Abs(height - _virtualListeners[i].rawPosition.y) > 0.01f)
                             _allListenersAreOnSameHeight = false;
                     }
                 }
@@ -812,7 +812,7 @@ namespace Klak.Ndi.Audio
             lock (_listenerLockObject)
             {
                 var originPos = AudioOrigin.position;
-                float avgListenerDistanceFromCamera = GetAvgListenerDistanceFromCamera(originPos);
+                float avgListenerDistanceFromOrigin = GetAvgListenerDistanceFromCamera(originPos);
             
                 foreach (var audioSourceKVP in _audioSourcesData)
                 {
@@ -821,17 +821,17 @@ namespace Klak.Ndi.Audio
                     
                     audioSource.CheckWeightsArray(_virtualListeners.Count);
                     
-                    float cameraDistanceToAudioSource = Vector3.Distance(audioSourceSettings.position, originPos);
+                    float originDistanceToAudioSource = Vector3.Distance(audioSourceSettings.position, originPos);
                     
                     Array.Fill(audioSource.currentWeights, 0f);
                     
                     var usedDistance = useOriginPosForAttenuation
-                        ? cameraDistanceToAudioSource
-                        : Mathf.Max(0, cameraDistanceToAudioSource - avgListenerDistanceFromCamera);
+                        ? originDistanceToAudioSource
+                        : Mathf.Max(0, originDistanceToAudioSource - avgListenerDistanceFromOrigin);
                     var audioSourceAttenuation = GetDistanceAttenuation(usedDistance, audioSourceSettings);
                     var spatialBlend = GetSpatialBlend(audioSourceSettings, audioSourceAttenuation);
                     var blendToCenter = _centeredAudioSourceOnAllListeners ? 
-                        Mathf.Pow(Mathf.Clamp01(Mathf.InverseLerp( avgListenerDistanceFromCamera, 1f, cameraDistanceToAudioSource)), 2f)
+                        Mathf.Pow(Mathf.Clamp01(Mathf.InverseLerp( avgListenerDistanceFromOrigin, 1f, originDistanceToAudioSource)), 2f)
                         : 0;
 
                     void ApplyDistanceAttenuationAndSourceVolumeToWeights()
@@ -974,7 +974,10 @@ namespace Klak.Ndi.Audio
         
         private static void CalculateWeightsBasedOnSimplePlanarAzimuthPanning(float[] weights, AudioSourceSettings audioSourceSettings, float centerBlend, float spatialBlend)
         {
-            BurstMethods.GetSphericalCoordinates(out var spherical, audioSourceSettings.position);
+            var inversedAudioSourcePosition = audioSourceSettings.position;
+            inversedAudioSourcePosition -= AudioOrigin.position;
+            inversedAudioSourcePosition = Quaternion.Inverse(AudioOrigin.rotation) * inversedAudioSourcePosition;
+            BurstMethods.GetSphericalCoordinates(out var spherical, inversedAudioSourcePosition);
             // Find the left and right listeners from the audioSource by the angle 
 
             FindLeftAndRightListenerBasedOnAzimuth(spherical,
