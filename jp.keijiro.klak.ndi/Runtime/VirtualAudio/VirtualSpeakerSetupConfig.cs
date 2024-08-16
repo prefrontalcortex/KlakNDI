@@ -44,7 +44,7 @@ namespace Klak.Ndi.Audio
         public bool objectBasedAudio = false;
         public int maxObjectBasedChannels = 16;
         public bool centeredAudioOnAllSpeakers;
-        public bool useCameraPositionForVirtualAttenuation;
+        public bool useAudioOriginPositionForVirtualAttenuation;
         
         public Speaker[] speakers;
         public OscSetting oscSetting;

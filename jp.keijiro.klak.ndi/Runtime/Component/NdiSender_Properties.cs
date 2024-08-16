@@ -1,6 +1,7 @@
 using System;
 using Klak.Ndi.Audio;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Klak.Ndi {
 
@@ -31,8 +32,8 @@ public sealed partial class NdiSender : MonoBehaviour, IAdmDataProvider
     public AudioMode audioMode = AudioMode.AudioListener;
     [Tooltip("Default distance of the Virtual Listeners from the center")]
     public float virtualListenerDistance = 4;
-    [Tooltip("If enabled, the Distance Attenuation will be calculated based on Camera Position instead of the Virtual Listener Position.")]
-    public bool useCameraPositionForVirtualAttenuation = false;
+    [FormerlySerializedAs("useCameraPositionForVirtualAttenuation")] [Tooltip("If enabled, the Distance Attenuation will be calculated based on AudioOrigin Position instead of the Virtual Listener Position.")]
+    public bool useAudioOriginPositionForVirtualAttenuation = false;
     public int maxObjectBasedChannels = 32;
     public SpeakerConfig customSpeakerConfig;
     [Tooltip("Sending Frame Rate")]

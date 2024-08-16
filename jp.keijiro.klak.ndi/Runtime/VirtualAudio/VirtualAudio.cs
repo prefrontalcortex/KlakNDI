@@ -798,7 +798,7 @@ namespace Klak.Ndi.Audio
             }
         }
 
-        internal static void UpdateAudioSourceToListenerWeights(Vector3 cameraPosition, bool useCameraPosForAttenuation = false)
+        internal static void UpdateAudioSourceToListenerWeights(bool useOriginPosForAttenuation = false)
         {
             if (!_useVirtualAudio)
                 return;
@@ -811,8 +811,9 @@ namespace Klak.Ndi.Audio
             lock (_audioSourcesData)
             lock (_listenerLockObject)
             {
-                float avgListenerDistanceFromCamera = GetAvgListenerDistanceFromCamera(cameraPosition);
-                var transformedCameraPosition = ApplyOrientationTransform(cameraPosition);
+                var originPos = AudioOrigin.position;
+                float avgListenerDistanceFromCamera = GetAvgListenerDistanceFromCamera(originPos);
+            
                 foreach (var audioSourceKVP in _audioSourcesData)
                 {
                     var audioSource = audioSourceKVP.Value;
@@ -820,11 +821,11 @@ namespace Klak.Ndi.Audio
                     
                     audioSource.CheckWeightsArray(_virtualListeners.Count);
                     
-                    float cameraDistanceToAudioSource = Vector3.Distance(audioSourceSettings.position, transformedCameraPosition);
+                    float cameraDistanceToAudioSource = Vector3.Distance(audioSourceSettings.position, originPos);
                     
                     Array.Fill(audioSource.currentWeights, 0f);
                     
-                    var usedDistance = useCameraPosForAttenuation
+                    var usedDistance = useOriginPosForAttenuation
                         ? cameraDistanceToAudioSource
                         : Mathf.Max(0, cameraDistanceToAudioSource - avgListenerDistanceFromCamera);
                     var audioSourceAttenuation = GetDistanceAttenuation(usedDistance, audioSourceSettings);

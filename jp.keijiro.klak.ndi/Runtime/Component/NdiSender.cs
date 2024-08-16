@@ -76,8 +76,6 @@ public sealed partial class NdiSender : MonoBehaviour
     private float[] samples = new float[1];
     private int sampleRate = 44100;
     private AudioMode _audioMode;
-    private Vector3 _listenerPosition;
-    private object _lockObj = new object();
     private IntPtr _metaDataPtr = IntPtr.Zero;
     private float[] _channelVisualisations;
     private object _channelVisualisationsLock = new object();
@@ -223,11 +221,6 @@ public sealed partial class NdiSender : MonoBehaviour
     
     private void Update()
     {
-        lock (_lockObj)
-        {
-            _listenerPosition = transform.position;
-        }
-        
         if (audioOrigin)
             VirtualAudio.AudioOrigin = new Pose(audioOrigin.position, audioOrigin.rotation);
         else
@@ -247,7 +240,7 @@ public sealed partial class NdiSender : MonoBehaviour
 
     private void LateUpdate()
     {
-        VirtualAudio.UpdateAudioSourceToListenerWeights( _listenerPosition, useCameraPositionForVirtualAttenuation);
+        VirtualAudio.UpdateAudioSourceToListenerWeights(useAudioOriginPositionForVirtualAttenuation);
     }
     
     internal static AudioSource[] SearchForAudioSourcesWithMissingListener()

@@ -119,7 +119,7 @@ namespace Klak.Ndi.Audio
             setupConfig.maxObjectBasedChannels = VirtualAudio.MaxObjectBasedChannels;
             setupConfig.objectBasedAudio = VirtualAudio.ObjectBasedAudio;
             setupConfig.centeredAudioOnAllSpeakers = VirtualAudio.PlayCenteredAudioSourceOnAllListeners;
-            setupConfig.useCameraPositionForVirtualAttenuation = _ndiSender.useCameraPositionForVirtualAttenuation;
+            setupConfig.useAudioOriginPositionForVirtualAttenuation = _ndiSender.useAudioOriginPositionForVirtualAttenuation;
             
             var listenerPositions = VirtualAudio.GetListenersPositions();
             var listenerVolumes = VirtualAudio.GetListenersVolume();
@@ -156,7 +156,7 @@ namespace Klak.Ndi.Audio
             VirtualAudio.UseVirtualAudio = true;
             
             VirtualAudio.PlayCenteredAudioSourceOnAllListeners = config.centeredAudioOnAllSpeakers;
-            _ndiSender.useCameraPositionForVirtualAttenuation = config.useCameraPositionForVirtualAttenuation;
+            _ndiSender.useAudioOriginPositionForVirtualAttenuation = config.useAudioOriginPositionForVirtualAttenuation;
             
             if (config.speakers != null)
             {
