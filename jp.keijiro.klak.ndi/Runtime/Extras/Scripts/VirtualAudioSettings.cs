@@ -39,7 +39,7 @@ public class VirtualAudioSettings : MonoBehaviour
 
     private void OnAttenuationFromCameraPositionToggle(bool isOn)
     {
-        _ndiSender.useCameraPositionForVirtualAttenuation = isOn;
+        _ndiSender.useAudioOriginPositionForVirtualAttenuation = isOn;
     }
 
     private void UpdateTexts()
@@ -91,10 +91,10 @@ public class VirtualAudioSettings : MonoBehaviour
             UpdateTexts();
         }
 
-        if (_ndiSender && _ndiSender.useCameraPositionForVirtualAttenuation !=
+        if (_ndiSender && _ndiSender.useAudioOriginPositionForVirtualAttenuation !=
             _attenuationFromCameraPositionToggle.isOn)
         {
-            _attenuationFromCameraPositionToggle.SetIsOnWithoutNotify(_ndiSender.useCameraPositionForVirtualAttenuation);
+            _attenuationFromCameraPositionToggle.SetIsOnWithoutNotify(_ndiSender.useAudioOriginPositionForVirtualAttenuation);
         }
 
         if (VirtualAudio.ObjectBasedAudio != _maxObjectsBasedAudioSlider.interactable)
