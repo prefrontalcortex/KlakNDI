@@ -56,6 +56,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 	internal void Restart()
 	{
+		ResetAudioBuffer();
 		ReleaseReceiverObjects();
 		ResetBufferStatistics();
 	}
@@ -354,6 +355,19 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		}
 		return null;
 	}
+
+	private void ResetAudioBuffer()
+	{
+		_initWaitForAudioBufferFillUp = true;
+		lock (audioBufferLock)
+		{
+			while (_audioFramesBuffer.Count > 0)
+			{
+				_audioFramesPool.Enqueue(_audioFramesBuffer[0]);
+				_audioFramesBuffer.RemoveAt(0);
+			}
+		}
+	}
 	
 	public void CheckPassthroughAudioSource()
 	{
@@ -603,6 +617,11 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	
 	internal bool FillAudioChannelData(ref float[] data, int channelNo, int channelCountInData, bool dataContainsSpatialData = false)
 	{
+		if (_initWaitForAudioBufferFillUp)
+		{
+			return false;
+		}
+		
 		using (FILL_AUDIO_CHANNEL_DATA_MARKER.Auto())
 		{
 			lock (audioBufferLock)
@@ -641,16 +660,21 @@ public sealed partial class NdiReceiver : MonoBehaviour
 						AudioFrameData _currentAudioFrame;
 						if (frameIndex >= _audioFramesBuffer.Count)
 						{
-							for (int i = 0; i < frameIndex; i++)
-							{
-								_audioFramesBuffer[i].channelSamplesReaded[channelNo] = 0;
-							}
+                            // not enough audio data in the buffers!
+                            
+                            // Mark all frames as readed
+							for (int i = 0; i < _audioFramesBuffer.Count; i++)
+								Array.Fill(_audioFramesBuffer[i].channelSamplesReaded, _audioFramesBuffer[i].samplesPerChannel);
+							
+							// Wait the next time that the buffer is filled up
+							_initWaitForAudioBufferFillUp = true;
+							Array.Fill(data, 0f);
+
 							lock (_bufferStatisticsLock)
 							{
 								_bufferStatistics.audioBufferUnderrun++;
 							}
-							Release();							
-							return false;
+							break;
 						}
 
 						_currentAudioFrame = _audioFramesBuffer[frameIndex];
@@ -672,9 +696,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 							return false;
 						}
 						
-						int samplesToCopy = Mathf.Min(frameSize, channelData.Length-audioFrameSamplesReaded);
-
-
+						int samplesToCopy = Mathf.Min(frameSize - samplesCopied, _currentAudioFrame.samplesPerChannel-audioFrameSamplesReaded);
+						
 						var channelDataPtr = (float*)channelData.GetUnsafePtr();
 
 						if (dataContainsSpatialData)
@@ -715,6 +738,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		}
 	}
 
+	private bool _initWaitForAudioBufferFillUp = false;
+
 	internal bool PullNextAudioFrame(int frameSize, int channels)
 	{
 		int removeCounter = 0;
@@ -728,6 +753,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 				if (_audioFramesBuffer.Count > 0 && (_audioFramesBuffer[0].samplesPerChannel*_audioFramesBuffer.Count) > _MaxBufferSampleSize)
 				{
+					// Reduce the buffer size if it is too big to the minimal size
 					while (_audioFramesBuffer.Count > 0 && (_audioFramesBuffer[0].samplesPerChannel*_audioFramesBuffer.Count) > _MinBufferSampleSize)
 					{
 						removeCounter++;
@@ -735,6 +761,21 @@ public sealed partial class NdiReceiver : MonoBehaviour
 						_audioFramesBuffer.RemoveAt(0);
 						_audioFramesPool.Enqueue(f);
 					}
+				}
+
+				if (_initWaitForAudioBufferFillUp)
+				{
+					// Wait for a minimal Buffer Size before start playing audio
+					if (_audioFramesBuffer.Count > 0 && (_audioFramesBuffer[0].samplesPerChannel*_audioFramesBuffer.Count) < _MinBufferSampleSize)
+					{
+						return false;
+					}
+					else if (_audioFramesBuffer.Count <= 2)
+					{
+						return false;
+					}
+					
+					_initWaitForAudioBufferFillUp = false;
 				}
 
 				do
