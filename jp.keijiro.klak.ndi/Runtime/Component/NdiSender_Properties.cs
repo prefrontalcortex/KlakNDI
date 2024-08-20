@@ -126,13 +126,6 @@ public sealed partial class NdiSender : MonoBehaviour, IAdmDataProvider
 
     void OnValidate()
     {
-        if (audioMode != AudioMode.AudioListener)
-        {
-            AudioSettings.SetSpatializerPluginName(AudioSpatializerExpectedName);
-            if (AudioSettings.GetSpatializerPluginName() != AudioSpatializerExpectedName)
-                Debug.LogWarning("Spatializer plugin not found. If you just installed KlakNDI with Audio Support, please restart Unity. If this issue persists, please report a bug.");
-        }
-
     #else
     void Awake()
     {
