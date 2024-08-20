@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Klak.Ndi;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Events;
 
 public class RenderTextureSetup : MonoBehaviour
 {
@@ -20,6 +21,8 @@ public class RenderTextureSetup : MonoBehaviour
 
     [SerializeField] private ResolutionPreset[] preset;
     private RenderTexture _renderTexture;
+    
+    public UnityEvent OnResolutionChanged = new UnityEvent();
     
     public void SelectPreset(int index)
     {
@@ -46,6 +49,8 @@ public class RenderTextureSetup : MonoBehaviour
         _ndiSender.sourceTexture = _renderTexture;
         _camera.targetTexture = _renderTexture;
         _ndiSender.enabled = true;
+        
+        OnResolutionChanged.Invoke();
     }
 
     private void CreatePresetDropDown()
