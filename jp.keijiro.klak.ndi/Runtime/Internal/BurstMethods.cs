@@ -94,8 +94,7 @@ namespace Klak.Ndi
             public static unsafe void PlanarToInterleaved(float* planarData, int planarOffset, int planarChannels, float* destData, int destOffset, int destChannels, int length)
             {
                 int channels = math.min(planarChannels, destChannels);
-   
-
+                
                 for (int i = 0; i < length; i++)
                 {
                     for (int c = 0; c < channels; c++)
