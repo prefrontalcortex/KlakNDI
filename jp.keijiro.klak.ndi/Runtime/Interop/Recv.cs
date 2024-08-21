@@ -139,6 +139,47 @@ public class Recv : SafeHandleZeroOrMinusOneIsInvalid
     [DllImport(Config.DllName, EntryPoint = "NDIlib_util_audio_from_interleaved_32f_v2")]
     static extern void _AudioFrameFromInterleaved(ref AudioFrameInterleaved src, ref AudioFrame dst);
 
+    // Frame Sync
+
+    [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_create")]
+    internal static extern IntPtr _Framesync_create(Recv p_receiver);
+
+    // framesync_destroy 
+    [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_destroy")]
+    internal static extern void _Framesync_destroy(IntPtr p_instance);
+
+    // framesync_capture_audio 
+    [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_capture_audio")]
+    internal static extern IntPtr _Framesync_capture_audio(IntPtr p_instance, ref AudioFrame p_audio_data,
+        int sample_rate, int no_channels, int no_samples);
+
+    // framesync_capture_audio_v2
+    [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_capture_audio_v2")]
+    internal static extern IntPtr _Framesync_capture_audio_v2(IntPtr p_instance, ref AudioFrameV3 p_audio_data,
+        int sample_rate, int no_channels, int no_samples);
+
+    // framesync_free_audio 
+    [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_free_audio")]
+    internal static extern void _Framesync_free_audio(IntPtr p_instance, ref AudioFrame p_audio_data);
+
+    // framesync_free_audio_v2
+    [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_free_audio_v2")]
+    internal static extern void _Framesync_free_audio_v2(IntPtr p_instance, ref AudioFrameV3 p_audio_data);
+
+    // framesync_audio_queue_depth 
+    [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_audio_queue_depth")]
+    internal static extern int _Framesync_audio_queue_depth(IntPtr p_instance);
+
+    // framesync_capture_video 
+    [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_capture_video")]
+    internal static extern void _Framesync_capture_video(IntPtr p_instance, ref VideoFrame p_video_data,
+        FrameFormat field_type);
+
+    // framesync_free_video 
+    [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_free_video")]
+    internal static extern void _Framesync_free_video(IntPtr p_instance, ref VideoFrame p_video_data);
+
+
     // recv_get_performance 
     [DllImport(Config.DllName, EntryPoint = "NDIlib_recv_get_performance")]
     internal static extern void _Recv_get_performance(Recv p_instance, ref ReceiverPerformance p_total, ref ReceiverPerformance p_dropped);
@@ -146,6 +187,7 @@ public class Recv : SafeHandleZeroOrMinusOneIsInvalid
     // recv_get_queue 
     [DllImport(Config.DllName, EntryPoint = "NDIlib_recv_get_queue")]
     internal static extern void _Recv_get_queue(Recv p_instance, ref ReceiverQueue p_total);
+    
     #endregion
 }
 
