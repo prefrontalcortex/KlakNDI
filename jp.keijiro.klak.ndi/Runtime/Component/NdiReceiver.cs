@@ -133,6 +133,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	    public float audioBufferTimeLength;
 	    public int audioBufferUnderrun;
 	    public int discardedAudioFrames;
+	    public int waitingForBufferFillUp;
 	    
 	    public void Reset()
 	    {
@@ -141,6 +142,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		    lastReceivedAudioFrameTime = 0;
 		    audioBufferTimeLength = 0;
 		    audioBufferUnderrun = 0;
+		    waitingForBufferFillUp = 0;
 	    }
     }
 
@@ -581,8 +583,6 @@ public sealed partial class NdiReceiver : MonoBehaviour
 							_currentAudioFrame.channelSamplesReaded[i] += samplesToCopy;
 						
 						var channelDataPtr = (float*)audioFrameData.GetUnsafePtr();
-						//samplesToCopy *= channelCountInData;
-
 						BurstMethods.PlanarToInterleaved(channelDataPtr, audioFrameSamplesReaded, _currentAudioFrame.noChannels,  destPtr, samplesCopied * channelCountInData, channelCountInData, samplesToCopy );
 
 						samplesCopied += samplesToCopy;
@@ -764,6 +764,12 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 				if (_initWaitForAudioBufferFillUp)
 				{
+					if (_audioFramesBuffer.Count > 0)
+					{
+						lock (_bufferStatisticsLock)
+							_bufferStatistics.waitingForBufferFillUp++;
+					}
+
 					// Wait for a minimal Buffer Size before start playing audio
 					if (_audioFramesBuffer.Count > 0 && (_audioFramesBuffer[0].samplesPerChannel*_audioFramesBuffer.Count) < _MinBufferSampleSize)
 					{
@@ -1188,10 +1194,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			settingsChanged = true;
 			_receivedAudioSampleRate = audio.SampleRate;
 		}
-
-		if (audio.Metadata == null && _usingVirtualSpeakers)
-			settingsChanged = true;
-
+		
 		if((_usingVirtualSpeakers && audio.NoChannels != _virtualSpeakersCount) || _receivedAudioChannels != audio.NoChannels)
 		{
 			settingsChanged = true;

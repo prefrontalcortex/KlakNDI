@@ -173,6 +173,7 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
                 GUILayout.Label("Last Received Frame");
                 GUILayout.Label("Audio: "+bufferStat.lastReceivedAudioFrameTime.ToString("F"));
                 GUILayout.Label("Video: "+bufferStat.lastReceivedVideoFrameTime.ToString("F"));
+                GUILayout.Label("Buffer fill up waitings: "+bufferStat.waitingForBufferFillUp);
                 EditorGUILayout.EndVertical();
             }
             EditorGUILayout.EndFoldoutHeaderGroup();
