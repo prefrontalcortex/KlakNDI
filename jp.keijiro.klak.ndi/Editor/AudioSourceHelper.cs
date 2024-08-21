@@ -51,7 +51,7 @@ namespace Klak.Ndi.Editor
             {
                 _audioSources[i] = targets[i] as AudioSource;
             }
-            //audioSources = targets as AudioSource[];
+
             _hasListener = new bool[_audioSources.Length];
 
             int listenerCount = 0;
@@ -74,7 +74,7 @@ namespace Klak.Ndi.Editor
             
             _defaultEditor.OnInspectorGUI();
             
-            if (!_ignoreListenerCheck && !_allHasListener && ! Application.isPlaying)
+            if (!_ignoreListenerCheck && !_allHasListener && !Application.isPlaying)
             {
                 GUILayout.Space(30);
                 GUI.backgroundColor = Color.cyan;

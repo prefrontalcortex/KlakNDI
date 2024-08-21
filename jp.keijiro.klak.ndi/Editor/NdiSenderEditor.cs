@@ -150,7 +150,7 @@ sealed class NdiSenderEditor : UnityEditor.Editor
             }
             else EditorGUILayout.PropertyField(virtualListenerDistance);
             
-            if (audioModeEnum != NdiSender.AudioMode.ObjectBased && audioModeEnum != NdiSender.AudioMode.CustomVirtualAudioSetup)
+            if (audioModeEnum != NdiSender.AudioMode.ObjectBased)
             {
                 EditorGUILayout.PropertyField(audioOrigin);
 
