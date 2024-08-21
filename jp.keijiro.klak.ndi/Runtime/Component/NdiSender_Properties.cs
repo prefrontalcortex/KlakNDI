@@ -11,7 +11,8 @@ public sealed partial class NdiSender : MonoBehaviour, IAdmDataProvider
 {
     #region NDI source settings
 
-    public enum AudioMode { 
+    public enum AudioMode {
+        None,
         AudioListener, 
         VirtualQuad,
         Virtual5Point1, 

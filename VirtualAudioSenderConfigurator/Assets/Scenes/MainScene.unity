@@ -33706,7 +33706,7 @@ MonoBehaviour:
   addMissingAudioSourceListenersAtRuntime: 0
   _ndiName: NDI Debug
   playCenteredAudioSourcesOnAllSpeakers: 0
-  audioMode: 0
+  audioMode: 1
   virtualListenerDistance: 10
   useAudioOriginPositionForVirtualAttenuation: 0
   maxObjectBasedChannels: 10

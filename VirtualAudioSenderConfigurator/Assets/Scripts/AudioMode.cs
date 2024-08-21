@@ -49,6 +49,7 @@ public class AudioMode : MonoBehaviour
     
     private void UpdateDropdown()
     {
+        _options.Add(new AudioDropDownOption(NdiSender.AudioMode.None));
         _options.Add(new AudioDropDownOption(NdiSender.AudioMode.AudioListener));
         _options.Add(new AudioDropDownOption(NdiSender.AudioMode.VirtualQuad));
         _options.Add(new AudioDropDownOption(NdiSender.AudioMode.Virtual5Point1));
@@ -73,7 +74,7 @@ public class AudioMode : MonoBehaviour
     {
         _audioModeDropdown.onValueChanged.AddListener(OnAudioModeChanged);
         UpdateDropdown();
-        _audioModeDropdown.value = 0;
+        _audioModeDropdown.value = 1;
     }
 
     private void OnAudioModeChanged(int index)

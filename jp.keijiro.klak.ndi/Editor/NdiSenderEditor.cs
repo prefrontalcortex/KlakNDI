@@ -109,172 +109,198 @@ sealed class NdiSenderEditor : UnityEditor.Editor
         EditorGUILayout.PropertyField(audioMode, new GUIContent("Audio Send Mode"));
         if (EditorGUI.EndChangeCheck())
         {
-            if (audioMode.Target.enumValueIndex != (int)NdiSender.AudioMode.AudioListener && _audioSourcesInScene.Length == 0)
+            if (audioMode.Target.enumValueIndex != 0  && audioMode.Target.enumValueIndex != (int)NdiSender.AudioMode.AudioListener && _audioSourcesInScene.Length == 0)
             {
                 SearchForAudioSources();
             }
         }
-        var audioModeEnum = (NdiSender.AudioMode)audioMode.Target.enumValueIndex;
-        if (audioModeEnum != NdiSender.AudioMode.AudioListener)
+
+        if (audioMode.Target.enumValueIndex > 0)
         {
-            EditorGUILayout.HelpBox("This AudioMode will create virtual AudioListeners and is not using the Unity builtin spatializer and AudioListener.\n" + 
-                "Virtual Audio Listeners do not support Unity's Audio Mixer. All Audio Sources with the " +
-                nameof(AudioSourceListener) + " component will be received by the Virtual Listeners.", MessageType.Info);
-            
-            var spatializer = AudioSettings.GetSpatializerPluginName();
-            if (spatializer != NdiSender.AudioSpatializerExpectedName)
+            var audioModeEnum = (NdiSender.AudioMode)audioMode.Target.enumValueIndex;
+            if (audioModeEnum != NdiSender.AudioMode.AudioListener)
             {
-                EditorGUILayout.HelpBox("The Passthrough Spatializer plugin is required in the Audio Settings to bypass any spatialized data modifications made by Unity.", MessageType.Error);
-                if (GUILayout.Button("Fix"))
+                EditorGUILayout.HelpBox(
+                    "This AudioMode will create virtual AudioListeners and is not using the Unity builtin spatializer and AudioListener.\n" +
+                    "Virtual Audio Listeners do not support Unity's Audio Mixer. All Audio Sources with the " +
+                    nameof(AudioSourceListener) + " component will be received by the Virtual Listeners.",
+                    MessageType.Info);
+
+                var spatializer = AudioSettings.GetSpatializerPluginName();
+                if (spatializer != NdiSender.AudioSpatializerExpectedName)
                 {
-                    AudioSettings.SetSpatializerPluginName(NdiSender.AudioSpatializerExpectedName);
-                    if (AudioSettings.GetSpatializerPluginName() != NdiSender.AudioSpatializerExpectedName)
-                        Debug.LogWarning("Spatializer plugin not found. If you just installed KlakNDI with Audio Support, please restart Unity. If this issue persists, please report a bug.");
+                    EditorGUILayout.HelpBox(
+                        "The Passthrough Spatializer plugin is required in the Audio Settings to bypass any spatialized data modifications made by Unity.",
+                        MessageType.Error);
+                    if (GUILayout.Button("Fix"))
+                    {
+                        AudioSettings.SetSpatializerPluginName(NdiSender.AudioSpatializerExpectedName);
+                        if (AudioSettings.GetSpatializerPluginName() != NdiSender.AudioSpatializerExpectedName)
+                            Debug.LogWarning(
+                                "Spatializer plugin not found. If you just installed KlakNDI with Audio Support, please restart Unity. If this issue persists, please report a bug.");
+                    }
+                }
+
+                if (audioModeEnum == NdiSender.AudioMode.SpeakerConfigAsset)
+                {
+                    if (customSpeakerConfig.Target.objectReferenceValue == null)
+                        GUI.color = Color.red;
+                    EditorGUILayout.PropertyField(customSpeakerConfig);
+                    GUI.color = Color.white;
+                }
+                else if (audioModeEnum == NdiSender.AudioMode.ObjectBased)
+                {
+                    EditorGUILayout.PropertyField(maxObjectBasedChannels);
+                }
+                else if (audioModeEnum == NdiSender.AudioMode.CustomVirtualAudioSetup)
+                {
+                    EditorGUILayout.HelpBox(
+                        "Use VirtualAudioSetup Component for virtual audio configuration or call from any script VirtualAudio.AddListener to add Channels.",
+                        MessageType.Info);
+                }
+                else EditorGUILayout.PropertyField(virtualListenerDistance);
+
+                if (audioModeEnum != NdiSender.AudioMode.ObjectBased)
+                {
+                    EditorGUILayout.PropertyField(audioOrigin);
+
+                    EditorGUILayout.PropertyField(useAudioOriginPositionForVirtualAttenuation);
+                    EditorGUILayout.PropertyField(playCenteredAudioSourcesOnAllSpeakers);
                 }
             }
-          
-            if (audioModeEnum == NdiSender.AudioMode.SpeakerConfigAsset)
+            else
             {
-                if (customSpeakerConfig.Target.objectReferenceValue == null)
-                    GUI.color = Color.red;
-                EditorGUILayout.PropertyField(customSpeakerConfig);
-                GUI.color = Color.white;
-            }
-            else if (audioModeEnum == NdiSender.AudioMode.ObjectBased)
-            {
-                EditorGUILayout.PropertyField(maxObjectBasedChannels);
-            }
-            else if (audioModeEnum == NdiSender.AudioMode.CustomVirtualAudioSetup)
-            {
-                EditorGUILayout.HelpBox("Use VirtualAudioSetup Component for virtual audio configuration or call from any script VirtualAudio.AddListener to add Channels.", MessageType.Info);    
-            }
-            else EditorGUILayout.PropertyField(virtualListenerDistance);
-            
-            if (audioModeEnum != NdiSender.AudioMode.ObjectBased)
-            {
-                EditorGUILayout.PropertyField(audioOrigin);
-
-                EditorGUILayout.PropertyField(useAudioOriginPositionForVirtualAttenuation);
-                EditorGUILayout.PropertyField(playCenteredAudioSourcesOnAllSpeakers);
-            }
-        }
-        else
-        {
-            if (availableAudioChannels != currentAudioChannels)
-            {
-                EditorGUILayout.HelpBox($"You have selected {audioSettings.speakerMode} ({currentAudioChannels} channels), but the current audio device supports {availableAudioChannels} channels.\nOnly {availableAudioChannels} will be sent. Select a virtual send mode if you want to transmit more channels.", MessageType.Warning);
-            }
-            else {
-                EditorGUILayout.HelpBox($"This AudioMode will capture all audio from the AudioListener.\nThe channel amount depends on the audio device capabilities and the Unity Audio Settings.\nWith your current settings, {currentAudioChannels} channels ({audioSettings.speakerMode}) will be sent.", MessageType.Info);
-            }
-        }
-        
-        EditorGUILayout.PropertyField(addMissingAudioSourceListenersAtRuntime);
-        serializedObject.ApplyModifiedProperties();
-
-        if (!Application.isPlaying && _audioSourcesInScene.Length > 0 && audioModeEnum != NdiSender.AudioMode.AudioListener)
-        {
-            GUI.backgroundColor = Color.cyan;
-            GUILayout.Space(30);
-            EditorGUILayout.BeginVertical(GUI.skin.window);
-            GUILayout.Space(-20);
-            GUILayout.Label("Virtual Audio", EditorStyles.boldLabel);
-            GUILayout.Label("Missing AudioSourceListener Components:", EditorStyles.boldLabel);
-
-            _audioSourcesScrollPos = EditorGUILayout.BeginScrollView(_audioSourcesScrollPos, GUILayout.MaxHeight(200));
-            for (int i = 0; i < _audioSourcesInScene.Length; i++)
-            {
-                EditorGUILayout.BeginHorizontal();
-                if (EditorGUILayout.LinkButton(_audioSourcesInScene[i].name))
+                if (availableAudioChannels != currentAudioChannels)
                 {
-                    Selection.activeGameObject = _audioSourcesInScene[i].gameObject;
+                    EditorGUILayout.HelpBox(
+                        $"You have selected {audioSettings.speakerMode} ({currentAudioChannels} channels), but the current audio device supports {availableAudioChannels} channels.\nOnly {availableAudioChannels} will be sent. Select a virtual send mode if you want to transmit more channels.",
+                        MessageType.Warning);
                 }
-                GUILayout.FlexibleSpace();
-                //EditorGUILayout.LabelField(_audioSourcesInScene[i].name);
+                else
+                {
+                    EditorGUILayout.HelpBox(
+                        $"This AudioMode will capture all audio from the AudioListener.\nThe channel amount depends on the audio device capabilities and the Unity Audio Settings.\nWith your current settings, {currentAudioChannels} channels ({audioSettings.speakerMode}) will be sent.",
+                        MessageType.Info);
+                }
+            }
+
+            if (!Application.isPlaying && audioMode.Target.enumValueIndex > 1)
+                EditorGUILayout.PropertyField(addMissingAudioSourceListenersAtRuntime);
+            
+            serializedObject.ApplyModifiedProperties();
+
+            if (!Application.isPlaying && _audioSourcesInScene.Length > 0 &&
+                audioModeEnum != NdiSender.AudioMode.AudioListener)
+            {
+                GUI.backgroundColor = Color.cyan;
+                GUILayout.Space(30);
+                EditorGUILayout.BeginVertical(GUI.skin.window);
+                GUILayout.Space(-20);
+                GUILayout.Label("Virtual Audio", EditorStyles.boldLabel);
+                GUILayout.Label("Missing AudioSourceListener Components:", EditorStyles.boldLabel);
+
+                _audioSourcesScrollPos =
+                    EditorGUILayout.BeginScrollView(_audioSourcesScrollPos, GUILayout.MaxHeight(200));
+                for (int i = 0; i < _audioSourcesInScene.Length; i++)
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    if (EditorGUILayout.LinkButton(_audioSourcesInScene[i].name))
+                    {
+                        Selection.activeGameObject = _audioSourcesInScene[i].gameObject;
+                    }
+
+                    GUILayout.FlexibleSpace();
+                    //EditorGUILayout.LabelField(_audioSourcesInScene[i].name);
+                    if (!addMissingAudioSourceListenersAtRuntime.Target.boolValue)
+                    {
+                        if (GUILayout.Button("Add AudioSourceListener"))
+                        {
+                            _audioSourcesInScene[i].gameObject.AddComponent<AudioSourceListener>();
+                            ArrayUtility.RemoveAt(ref _audioSourcesInScene, i);
+                            return;
+                        }
+                    }
+
+                    EditorGUILayout.EndHorizontal();
+                }
+
+                EditorGUILayout.EndScrollView();
+                EditorGUILayout.Space();
                 if (!addMissingAudioSourceListenersAtRuntime.Target.boolValue)
                 {
-                    if (GUILayout.Button("Add AudioSourceListener"))
+                    if (GUILayout.Button("Add to all"))
                     {
-                        _audioSourcesInScene[i].gameObject.AddComponent<AudioSourceListener>();
-                        ArrayUtility.RemoveAt(ref _audioSourcesInScene, i);
-                        return;
+                        foreach (var audioSource in _audioSourcesInScene)
+                        {
+                            audioSource.gameObject.AddComponent<AudioSourceListener>();
+                        }
+
+                        _audioSourcesInScene = Array.Empty<AudioSource>();
                     }
                 }
-                
-                EditorGUILayout.EndHorizontal();
-            }
-            EditorGUILayout.EndScrollView();
-            EditorGUILayout.Space();
-            if (!addMissingAudioSourceListenersAtRuntime.Target.boolValue)
-            {
-                if (GUILayout.Button("Add to all"))
-                {
-                    foreach (var audioSource in _audioSourcesInScene)
-                    {
-                        audioSource.gameObject.AddComponent<AudioSourceListener>();
-                    }
 
-                    _audioSourcesInScene = Array.Empty<AudioSource>();
+                GUILayout.FlexibleSpace();
+
+                EditorGUILayout.EndVertical();
+                GUI.backgroundColor = Color.white;
+            }
+
+            var ndiSender = target as NdiSender;
+            if (Application.isPlaying && VirtualAudio.UseVirtualAudio)
+            {
+                var channels = ndiSender.GetChannelVisualisations();
+
+                var vol = VirtualAudio.GetListenersVolume();
+                var channelPos = ndiSender.GetChannelObjectPositions();
+                if (channels != null)
+                {
+                    ChannelMeter.Draw(channels, (int channelNo) =>
+                    {
+                        if (ndiSender.audioMode == NdiSender.AudioMode.ObjectBased)
+                        {
+                            GUILayout.Label("Pos: " +
+                                            (channelNo < channelPos.Length ? channelPos[channelNo].ToString() : "-"));
+                            //var r = EditorGUILayout.GetControlRect(false, 10f, GUILayout.Width(80f));
+                            //GUI.backgroundColor = Color.white;
+                            //EditorGUI.ProgressBar(r, vol[channelNo], vol[channelNo].ToString("P0"));   
+                        }
+                        else
+                        {
+                            GUILayout.Label("List.Vol: ");
+                            var r = EditorGUILayout.GetControlRect(false, 10f, GUILayout.Width(80f));
+                            GUI.backgroundColor = Color.white;
+
+                            if (vol != null && channelNo < vol.Length)
+                                EditorGUI.ProgressBar(r, vol[channelNo], vol[channelNo].ToString("P0"));
+                        }
+                    });
+                    Repaint();
                 }
             }
-
-            GUILayout.FlexibleSpace();
-            
-            EditorGUILayout.EndVertical();
-            GUI.backgroundColor = Color.white;
-        }
-        
-        var ndiSender = target as NdiSender;
-        if (Application.isPlaying && VirtualAudio.UseVirtualAudio)
-        {
-            var channels = ndiSender.GetChannelVisualisations();
-
-            var vol = VirtualAudio.GetListenersVolume();
-            var channelPos = ndiSender.GetChannelObjectPositions();
-            if (channels != null)
+            else
             {
-                ChannelMeter.Draw(channels, (int channelNo) =>
-                {
-                    if (ndiSender.audioMode == NdiSender.AudioMode.ObjectBased)
-                    {
-                        GUILayout.Label("Pos: " + (channelNo < channelPos.Length ? channelPos[channelNo].ToString() : "-"));
-                        //var r = EditorGUILayout.GetControlRect(false, 10f, GUILayout.Width(80f));
-                        //GUI.backgroundColor = Color.white;
-                        //EditorGUI.ProgressBar(r, vol[channelNo], vol[channelNo].ToString("P0"));   
-                    }
-                    else
-                    {
-                        GUILayout.Label("List.Vol: ");
-                        var r = EditorGUILayout.GetControlRect(false, 10f, GUILayout.Width(80f));
-                        GUI.backgroundColor = Color.white;
-                        
-                        if (vol != null && channelNo < vol.Length)
-                            EditorGUI.ProgressBar(r, vol[channelNo], vol[channelNo].ToString("P0"));
-                    }
-                });
-                Repaint();
-            }
-        }
-        else
-        {
-            
+
 #if OSC_JACK
-            if (!ndiSender.GetComponent<AdmOscSender>())
-            {
-                GUILayout.Label("Object Based Audio:");
-                if (GUILayout.Button("Add ADM OSC Sender Component", GUILayout.Height(30)))
+                if (!ndiSender.GetComponent<AdmOscSender>())
                 {
-                    var oscSender = ndiSender.gameObject.AddComponent<AdmOscSender>();
+                    GUILayout.Label("Object Based Audio:");
+                    if (GUILayout.Button("Add ADM OSC Sender Component", GUILayout.Height(30)))
+                    {
+                        var oscSender = ndiSender.gameObject.AddComponent<AdmOscSender>();
+                    }
                 }
-            }
 #else
             GUILayout.Label("Add package OscJack to send object based audio position over OSC");
             GUI.enabled = false;
             GUILayout.TextField("https://github.com/keijiro/OscJack");
             GUI.enabled = true;
-#endif  
+#endif
+
+            }
 
         }
+        else 
+            serializedObject.ApplyModifiedProperties();
         EditorGUI.indentLevel--;
     }
 }
