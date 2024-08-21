@@ -228,6 +228,7 @@ public sealed partial class NdiSender : MonoBehaviour
         
         if (audioMode != AudioMode.CustomVirtualAudioSetup)
             VirtualAudio.PlayCenteredAudioSourceOnAllListeners = playCenteredAudioSourcesOnAllSpeakers;
+      
         if (_audioMode != audioMode || _lastVirtualListenerDistance != virtualListenerDistance)
         {
             ResetState();
@@ -240,7 +241,10 @@ public sealed partial class NdiSender : MonoBehaviour
 
     private void LateUpdate()
     {
-        VirtualAudio.UpdateAudioSourceToListenerWeights(useAudioOriginPositionForVirtualAttenuation);
+        if (_audioMode == AudioMode.None)
+            return;
+        if (_audioMode != AudioMode.ObjectBased && _audioMode != AudioMode.AudioListener)
+            VirtualAudio.UpdateAudioSourceToListenerWeights(useAudioOriginPositionForVirtualAttenuation);
     }
     
     internal static AudioSource[] SearchForAudioSourcesWithMissingListener()
@@ -271,6 +275,9 @@ public sealed partial class NdiSender : MonoBehaviour
 
     private void OnAudioFilterRead(float[] data, int channels)
     {
+        if (_audioMode == AudioMode.None)
+            return;
+        
         if (_audioMode == AudioMode.AudioListener)
         {
             SendAudioListenerData(data, channels);
@@ -672,7 +679,7 @@ public sealed partial class NdiSender : MonoBehaviour
         _audioMode = audioMode;
         if (Application.isPlaying)
         {
-            CheckAudioListener(willBeActive);
+            CheckAudioListener(willBeActive && _audioMode != AudioMode.None);
 
             if (audioMode != AudioMode.CustomVirtualAudioSetup)
                 ClearVirtualSpeakerListeners();
@@ -680,6 +687,7 @@ public sealed partial class NdiSender : MonoBehaviour
             _lastVirtualListenerDistance = virtualListenerDistance;
             switch (audioMode)
             {
+                case AudioMode.None:
                 case AudioMode.AudioListener:
                     lock (_channelVisualisationsLock)
                         _channelVisualisations = null;
