@@ -99,6 +99,20 @@ namespace Klak.Ndi
                 {
                     for (int c = 0; c < channels; c++)
                         destData[destOffset + (i * destChannels + c)] = planarData[planarOffset + (length * c + i)];
+                    for (int c = channels; c < destChannels; c++)
+                        destData[destOffset + (i * destChannels + c)] = 0f;
+                }
+            }
+            
+            [BurstCompile]
+            public static unsafe void CopyInterleaved(float* sourceData, int sourceOffset, int sourceChannels, float* destData, int destOffset, int destChannels, int length)
+            {
+                int channels = math.min(sourceChannels, destChannels);
+                
+                for (int i = 0; i < length; i++)
+                {
+                    for (int c = 0; c < channels; c++)
+                        destData[destOffset + (i * destChannels + c)] = sourceData[sourceOffset + (i * sourceChannels + c)];
 
                     for (int c = channels; c < destChannels; c++)
                         destData[destOffset + (i * destChannels + c)] = 0f;

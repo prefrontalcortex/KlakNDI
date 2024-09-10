@@ -6,7 +6,7 @@ using UnityEngine.Serialization;
 namespace Klak.Ndi {
 
 public enum CaptureMethod { GameView, Camera, Texture }
-
+[AddComponentMenu("NDI/Sender")]
 public sealed partial class NdiSender : MonoBehaviour, IAdmDataProvider
 {
     #region NDI source settings

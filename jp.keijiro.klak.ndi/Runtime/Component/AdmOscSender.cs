@@ -7,6 +7,7 @@ using UnityEngine;
 namespace Klak.Ndi
 {
     [RequireComponent(typeof(IAdmDataProvider))]
+    [AddComponentMenu("NDI/ADM OSC Sender")]
     public class AdmOscSender : MonoBehaviour
     {
         [Serializable]
