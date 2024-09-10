@@ -3,7 +3,7 @@ using Klak.Ndi.Interop;
 using UnityEngine;
 
 namespace Klak.Ndi {
-
+[AddComponentMenu("NDI/Receiver")]
 public sealed partial class NdiReceiver : MonoBehaviour, IAdmDataProvider
 {
     #region NDI source settings

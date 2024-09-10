@@ -4,39 +4,36 @@ using System.Linq;
 using UnityEngine;
 using NAudio.Wave;
 using TMPro;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace Klak.Ndi.Audio.NAudio
 {
+    [AddComponentMenu("NDI/ASIO Out")]
     public class VirtualAudioAsioOut : MonoBehaviour
     {
         public enum SenderReceiverMode
         {
             NdiSender,
-            NdiReceiver
+            NdiReceiver,
+            AudioListener
         }
-
-        // TODO:
-        public bool blockNdiAudioWhenUsingAsio = false;
-
+        
         public SenderReceiverMode senderReceiverMode = SenderReceiverMode.NdiSender;
         [SerializeField] private NdiReceiver _receiver;
-        [SerializeField] private TMP_Dropdown dropdown;
-        [SerializeField] private TextMeshProUGUI _maxChannelsText;
 
+        [SerializeField] private string _defaultDeviceName = "";
+        
         private string[] _driverNames;
         private IDisposable _sampleProvider;
         private AsioOut _asioOut;
 
         public string[] DriverNames => _driverNames;
         
-        private string _selectedDriverName;
+        private string _currentDriverName;
         
-        private void Awake()
-        {
-            dropdown.onValueChanged.AddListener(OnDropdownValueChanged);
-        }
-
-        private void OnDropdownValueChanged(int selectedIndex)
+        public void SetAsioDevice(string name)
         {
             if (_asioOut != null)
             {
@@ -45,19 +42,9 @@ namespace Klak.Ndi.Audio.NAudio
                 _sampleProvider.Dispose();
             }
 
-            if (selectedIndex == 0)
-                return;
-
-            _selectedDriverName = _driverNames[selectedIndex - 1];
-            _asioOut = new AsioOut(_selectedDriverName);
-
-            var maxChannels = _asioOut.DriverOutputChannelCount;
+            _currentDriverName = name;
+            _asioOut = new AsioOut(_currentDriverName);
             
-            if (_maxChannelsText)
-                _maxChannelsText.text = "Max channels: " + maxChannels;
-            
-            Debug.Log("Max channels: " + maxChannels);
-
             ISampleProvider virtualAudioSampleProvider;
 
             switch (senderReceiverMode)
@@ -68,6 +55,9 @@ namespace Klak.Ndi.Audio.NAudio
                 case SenderReceiverMode.NdiReceiver:
                     virtualAudioSampleProvider = new ReceiverSampleProvider(_asioOut, _receiver);
                     break;
+                case SenderReceiverMode.AudioListener:
+                    virtualAudioSampleProvider = new AudioListenerSampleProvider(_asioOut);
+                    break;
                 default:
                     throw new ArgumentOutOfRangeException();
             }
@@ -76,33 +66,15 @@ namespace Klak.Ndi.Audio.NAudio
             _asioOut.Init(virtualAudioSampleProvider);
             _asioOut.Play();
         }
-
-        void OnEnable()
+        
+        private void Awake()
         {
-            _driverNames = AsioOut.GetDriverNames();
+            _currentDriverName = _defaultDeviceName;
+        }
 
-            dropdown.ClearOptions();
-            ;
-            var options = new List<string>();
-            options.Add("");
-            options.AddRange(_driverNames);
-
-            dropdown.AddOptions(options);
-            dropdown.SetValueWithoutNotify(0);
-
-            if (_driverNames.Length == 0)
-            {
-                Debug.Log("No ASIO drivers found!");
-                if (_maxChannelsText)
-                    _maxChannelsText.text = "No ASIO drivers found!";
-            }
-            else
-            {
-                if (_driverNames.Contains(_selectedDriverName))
-                {
-                    dropdown.value = Array.IndexOf(_driverNames, _selectedDriverName) + 1;
-                }
-            }
+        private void OnEnable()
+        {
+            SetAsioDevice(_currentDriverName);
         }
 
         private void OnDisable()
@@ -112,7 +84,69 @@ namespace Klak.Ndi.Audio.NAudio
                 _asioOut.Stop();
                 _asioOut.Dispose();
                 _sampleProvider.Dispose();
+                _asioOut = null;
             }
         }
+        
+#if UNITY_EDITOR
+        
+        [CustomEditor(typeof(VirtualAudioAsioOut))]
+        public class VirtualAudioAsioOutEditor : Editor
+        {
+            private string[] _asioDevices;
+
+            private void OnEnable()
+            {
+                _asioDevices = AsioOut.GetDriverNames();
+            }
+
+            public override void OnInspectorGUI()
+            {
+                var t = target as VirtualAudioAsioOut;
+                if (t == null) return;
+                if (t.senderReceiverMode == SenderReceiverMode.NdiSender
+                    || t.senderReceiverMode == SenderReceiverMode.AudioListener)
+                {
+                    if (t.senderReceiverMode == SenderReceiverMode.NdiSender)
+                        EditorGUILayout.HelpBox(new GUIContent("Asio Out is only supported when using a Virtual Audio Mode on the NDI Sender"));
+                    
+                    EditorGUI.BeginChangeCheck();
+                    DrawPropertiesExcluding(serializedObject, "_receiver");
+                    if (EditorGUI.EndChangeCheck())
+                        serializedObject.ApplyModifiedProperties();
+                }
+                else
+                    base.OnInspectorGUI();
+
+                if (Application.isPlaying)
+                    return;
+                
+                EditorGUILayout.Space();
+                EditorGUILayout.LabelField("ASIO Devices on this machine", EditorStyles.boldLabel);
+                if (_asioDevices.Length == 0)
+                {
+                    EditorGUILayout.LabelField("No ASIO devices found.");
+                }
+                else
+                {
+                    EditorGUI.indentLevel++;
+                    foreach (var device in _asioDevices)
+                    {
+                        EditorGUILayout.BeginHorizontal();
+                        EditorGUILayout.LabelField(device);
+                        
+                        if (GUILayout.Button("Set as default"))
+                        {
+                            serializedObject.FindProperty("_defaultDeviceName").stringValue = device;
+                            serializedObject.ApplyModifiedProperties();
+                        }
+                        EditorGUILayout.EndHorizontal();
+                    }
+
+                    EditorGUI.indentLevel--;
+                }
+            }
+        }
+#endif
     }
 }
