@@ -1,3 +1,4 @@
+using UnityEngine;
 using IntPtr = System.IntPtr;
 using Marshal = System.Runtime.InteropServices.Marshal;
 
@@ -13,7 +14,7 @@ static class RecvHelper
         return null;
     }
 
-    public static unsafe Interop.Recv TryCreateRecv(string sourceName, Interop.Bandwidth bandwidth)
+    public static unsafe Interop.Recv TryCreateRecv(string sourceName, Interop.Bandwidth bandwidth, bool frameSync)
     {
         var source = FindSource(sourceName);
         if (source == null) return null;
@@ -21,9 +22,12 @@ static class RecvHelper
         var opt = new Interop.Recv.Settings
           { Source = (Interop.Source)source,
             ColorFormat = Interop.ColorFormat.Fastest,
-            Bandwidth = bandwidth };
+            Bandwidth = bandwidth, AllowVideoFields = false};
 
-        return Interop.Recv.Create(opt);
+        if (frameSync)
+            return Interop.Recv.CreateWithFrameSync(opt);
+        else
+            return Interop.Recv.Create(opt);
     }
 
     public static Interop.VideoFrame? TryCaptureVideoFrame(Interop.Recv recv)

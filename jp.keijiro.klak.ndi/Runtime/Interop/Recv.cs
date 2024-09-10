@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
+using UnityEngine;
 
 namespace Klak.Ndi.Interop {
 
@@ -29,10 +30,20 @@ public class Recv : SafeHandleZeroOrMinusOneIsInvalid
 {
     #region SafeHandle implementation
 
+    public bool FrameSyncEnabled { get; private set; }
+
+    private IntPtr _frameSyncHandle;
+    private bool _disposing = false;
+    private object _audioLock;
+    private object _videoLock;    
+
     Recv() : base(true) {}
 
     protected override bool ReleaseHandle()
     {
+        _disposing = true;
+        if (FrameSyncEnabled)
+            _Framesync_destroy(_frameSyncHandle);
         _Destroy(handle);
         return true;
     }
@@ -44,9 +55,65 @@ public class Recv : SafeHandleZeroOrMinusOneIsInvalid
     public static Recv Create(in Settings settings)
       => _Create(settings);
 
+    public static Recv CreateWithFrameSync(in Settings settings)
+    {
+        var r = Create(settings); 
+        r._frameSyncHandle = _Framesync_create(r);
+        r.FrameSyncEnabled = true;
+        return r;
+    }
+
     public FrameType Capture
-      (out VideoFrame video, out AudioFrame audio, out MetadataFrame metadata, uint timeout)
-      => _Capture(this, out video, out audio, out metadata, timeout);
+        (out VideoFrame video, out AudioFrame audio, out MetadataFrame metadata, uint timeout)
+    {
+        if (FrameSyncEnabled)
+        {
+            Debug.LogError("FrameSync is enabled, use CaptureFrameSyncVideo instead.");
+            video = new VideoFrame();
+            audio = new AudioFrame();
+            metadata = new MetadataFrame();
+            
+            return FrameType.None;
+        } 
+        return _Capture(this, out video, out audio, out metadata, timeout);
+    }
+
+    public bool CaptureFrameSyncVideo(out VideoFrame video, FrameFormat field_type)
+    {
+        if (_disposing)
+        {
+            video = new VideoFrame();
+            return false;
+        }
+
+        if (!FrameSyncEnabled)
+        {
+            Debug.LogError("FrameSync is not enabled, use Capture instead.");
+            video = new VideoFrame();
+            return false;
+        }
+        _Framesync_capture_video(_frameSyncHandle, out video, field_type);
+        if (video.Data == IntPtr.Zero) return false;
+        return true;
+    }
+
+    public void CaptureFrameSyncAudio(out AudioFrame audio, int no_samples)
+    {
+        if (_disposing)
+        {
+            audio = new AudioFrame();
+            return;
+        }
+        
+        if (!FrameSyncEnabled)
+        {
+            Debug.LogError("FrameSync is not enabled, use CaptureAudio instead.");
+            audio = new AudioFrame();
+            return;
+        }
+        
+        _Framesync_capture_audio(_frameSyncHandle, out audio, 0, 0, no_samples);
+    }
 
     public FrameType CaptureVideoAndMeta
         (out VideoFrame video, out MetadataFrame metadata, uint timeout)
@@ -54,16 +121,32 @@ public class Recv : SafeHandleZeroOrMinusOneIsInvalid
 
     public bool CaptureAudio(out AudioFrame audio, uint timeout)
     {
+        if (FrameSyncEnabled)
+        {
+            Debug.LogError("FrameSync is enabled, use CaptureFrameSyncAudio instead.");
+            audio = new AudioFrame();
+            return false;
+        }
         var t = _CaptureAudio(this, IntPtr.Zero, out audio, IntPtr.Zero, timeout);
         return t == FrameType.Audio;
     }
-    
+
     public void FreeVideoFrame(in VideoFrame frame)
-      => _FreeVideo(this, frame);
+    {
+        if (FrameSyncEnabled)
+            _Framesync_free_video(_frameSyncHandle, frame);
+        else
+            _FreeVideo(this, frame);
+    }
 
     public void FreeAudioFrame(in AudioFrame frame)
-        => _FreeAudio(this, frame);
-
+    {
+        if (FrameSyncEnabled)
+            _Framesync_free_audio(_frameSyncHandle, frame);
+        else
+            _FreeAudio(this, frame);
+    }
+    
     public void FreeMetadataFrame(in MetadataFrame frame)
         => _FreeMetadata(this, frame);
 
@@ -122,7 +205,7 @@ public class Recv : SafeHandleZeroOrMinusOneIsInvalid
 
     [DllImport(Config.DllName, EntryPoint = "NDIlib_recv_free_audio_v2")]
     static extern void _FreeAudio(Recv recv, in AudioFrame data);
-
+    
     [DllImport(Config.DllName, EntryPoint = "NDIlib_recv_free_metadata")]
     static extern void _FreeMetadata(Recv recv, in MetadataFrame data);
 
@@ -148,23 +231,15 @@ public class Recv : SafeHandleZeroOrMinusOneIsInvalid
     [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_destroy")]
     internal static extern void _Framesync_destroy(IntPtr p_instance);
 
-    // framesync_capture_audio 
+
+    // framesync_capture_audio
     [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_capture_audio")]
-    internal static extern IntPtr _Framesync_capture_audio(IntPtr p_instance, ref AudioFrame p_audio_data,
+    internal static extern IntPtr _Framesync_capture_audio(IntPtr p_instance, out AudioFrame p_audio_data,
         int sample_rate, int no_channels, int no_samples);
-
-    // framesync_capture_audio_v2
-    [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_capture_audio_v2")]
-    internal static extern IntPtr _Framesync_capture_audio_v2(IntPtr p_instance, ref AudioFrameV3 p_audio_data,
-        int sample_rate, int no_channels, int no_samples);
-
-    // framesync_free_audio 
+    
+    // framesync_free_audio
     [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_free_audio")]
-    internal static extern void _Framesync_free_audio(IntPtr p_instance, ref AudioFrame p_audio_data);
-
-    // framesync_free_audio_v2
-    [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_free_audio_v2")]
-    internal static extern void _Framesync_free_audio_v2(IntPtr p_instance, ref AudioFrameV3 p_audio_data);
+    internal static extern void _Framesync_free_audio(IntPtr p_instance, in AudioFrame p_audio_data);
 
     // framesync_audio_queue_depth 
     [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_audio_queue_depth")]
@@ -172,12 +247,12 @@ public class Recv : SafeHandleZeroOrMinusOneIsInvalid
 
     // framesync_capture_video 
     [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_capture_video")]
-    internal static extern void _Framesync_capture_video(IntPtr p_instance, ref VideoFrame p_video_data,
+    internal static extern void _Framesync_capture_video(IntPtr p_instance, out VideoFrame p_video_data,
         FrameFormat field_type);
 
     // framesync_free_video 
     [DllImport(Config.DllName, EntryPoint = "NDIlib_framesync_free_video")]
-    internal static extern void _Framesync_free_video(IntPtr p_instance, ref VideoFrame p_video_data);
+    internal static extern void _Framesync_free_video(IntPtr p_instance, in VideoFrame p_video_data);
 
 
     // recv_get_performance 

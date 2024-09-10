@@ -180,6 +180,8 @@ namespace Klak.Ndi.Audio
         private static bool _centeredAudioSourceOnAllListeners = true;
         
         private static int _dspBufferSize;
+
+        public static int DspBufferSize => _dspBufferSize;
         private static int _sampleRate;
         private static double _lastCheckSetupTime = -1;
         private static List<int> _usedObjectBasedChannels = new List<int>(32);

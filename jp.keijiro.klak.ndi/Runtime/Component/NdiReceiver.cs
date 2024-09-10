@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +13,7 @@ using UnityEngine;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Profiling;
+using Debug = UnityEngine.Debug;
 
 namespace Klak.Ndi {
 
@@ -28,6 +30,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private ReceiverPerformance _performance;
 	private ReceiverPerformance _dropped;
 	private ReceiverQueue _queue;
+
+	public bool useFrameSync = true;
 	
     void PrepareReceiverObjects()
     {
@@ -38,7 +42,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		    _recv = null;
 	    }
 	    
-        if (_recv == null) _recv = RecvHelper.TryCreateRecv(ndiName, _bandwidth);
+        if (_recv == null) _recv = RecvHelper.TryCreateRecv(ndiName, _bandwidth, useFrameSync);
         if (_converter == null) _converter = new FormatConverter(_resources);
         if (_override == null) _override = new MaterialPropertyBlock();
     }
@@ -54,11 +58,34 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 	#endregion
 
+	private AudioListenerBridge _audioListenerBridge;
 	internal void Restart()
 	{
 		ResetAudioBuffer();
 		ReleaseReceiverObjects();
 		ResetBufferStatistics();
+		if (useFrameSync)
+		{
+			if (!GetComponent<AudioListener>())
+			{
+				if (!_audioListenerBridge)
+				{
+					var audioListener = FindObjectOfType<AudioListener>();
+					_audioListenerBridge = audioListener.GetComponent<AudioListenerBridge>();
+					if (!_audioListenerBridge)
+						_audioListenerBridge = audioListener.gameObject.AddComponent<AudioListenerBridge>();
+					
+					AudioListenerBridge.OnAudioFilterReadEvent -= OnAudioFilterRead;
+					AudioListenerBridge.OnAudioFilterReadEvent += OnAudioFilterRead;
+				}
+			}
+		}
+		else
+		{
+			if (_audioSourceBridge)
+				Destroy(_audioListenerBridge);
+			AudioListenerBridge.OnAudioFilterReadEvent -= OnAudioFilterRead; 
+		}
 	}
 
 	void Awake()
@@ -113,6 +140,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 	void OnDestroy()
 	{
+        ReleaseReceiverObjects();
+		AudioListenerBridge.OnAudioFilterReadEvent -= OnAudioFilterRead; 
+
 		while (_audioFramesPool.Count > 0)
 			_audioFramesPool.Dequeue().Dispose();
 		while (_audioFramesBuffer.Count > 0)
@@ -122,7 +152,6 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		}
 		
 		tokenSource?.Cancel();
-        ReleaseReceiverObjects();
 
 		AudioSettings.OnAudioConfigurationChanged -= AudioSettings_OnAudioConfigurationChanged;
 		DestroyAudioSourceBridge();
@@ -165,6 +194,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	    lock (_bufferStatisticsLock)
 		    return _bufferStatistics;
     }
+
+    public long rcvVideoTime;
+    public long rcvProcess;
     
     void ReceiveFrameTask()
 	{
@@ -177,36 +209,81 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 			Interop.VideoFrame video;
 			Interop.MetadataFrame metadata;
-			
-			var type = _recv.CaptureVideoAndMeta(out video, out metadata, 0);
-			switch (type)
+
+			if (_recv.FrameSyncEnabled)
 			{
-				case Interop.FrameType.Error:
-					//Debug.Log($"received {type}: {video} {audio} {metadata}");
-					mainThreadContext.Post(ProcessStatusChange, true);
-					break;
-				case Interop.FrameType.Metadata:
-					//Debug.Log($"received {type}: {metadata}");
-					mainThreadContext.Post(ProcessMetadataFrame, metadata);
-					break;
-				case Interop.FrameType.None:
-					//Debug.Log($"received {type}");
-					break;
-				case Interop.FrameType.StatusChange:
-					//Debug.Log($"received {type}: {video} {audio} {metadata}");
-					mainThreadContext.Post(ProcessStatusChange, false);
-					break;
-				case Interop.FrameType.Video:
+				var sw = new Stopwatch();
+				sw.Start();
+				if (_recv.CaptureFrameSyncVideo(out video, FrameFormat.Progressive))
+				{
+					sw.Stop();
+					rcvVideoTime = sw.ElapsedMilliseconds;
+					
 					lock (_bufferStatisticsLock)
 						_bufferStatistics.lastReceivedVideoFrameTime = AudioSettings.dspTime;
-					//Debug.Log($"received {type}: {video}");
+					OnVideoFrameReceived?.Invoke(video);
+					
+					sw.Reset();
+					sw.Restart();
 					ProcessVideoFrame(video);
-					break;
+					
+					sw.Stop();
+					rcvProcess = sw.ElapsedMilliseconds;
+					//Thread.Sleep(3);
+				}
+			}
+			else
+			{
+				var type = _recv.CaptureVideoAndMeta(out video, out metadata, 0);
+				switch (type)
+				{
+					case Interop.FrameType.Error:
+						//Debug.Log($"received {type}: {video} {audio} {metadata}");
+						mainThreadContext.Post(ProcessStatusChange, true);
+						break;
+					case Interop.FrameType.Metadata:
+						//Debug.Log($"received {type}: {metadata}");
+						mainThreadContext.Post(ProcessMetadataFrame, metadata);
+						break;
+					case Interop.FrameType.None:
+						//Debug.Log($"received {type}");
+						break;
+					case Interop.FrameType.StatusChange:
+						//Debug.Log($"received {type}: {video} {audio} {metadata}");
+						mainThreadContext.Post(ProcessStatusChange, false);
+						break;
+					case Interop.FrameType.Video:
+						lock (_bufferStatisticsLock)
+							_bufferStatistics.lastReceivedVideoFrameTime = AudioSettings.dspTime;
+						//Debug.Log($"received {type}: {video}");
+						OnVideoFrameReceived?.Invoke(video);
+						ProcessVideoFrame(video);
+						break;
+				}
 			}
 		}
 		catch (System.Exception e)
 		{
 			Debug.LogException(e);
+		}
+	}
+
+	private void ReceiveAudioSync()
+	{
+		if (_receiveAudio && _recv != null && _recv.FrameSyncEnabled)
+		{
+			//_initWaitForAudioBufferFillUp = false;
+			AudioFrame audio;
+			_recv.CaptureFrameSyncAudio(out audio, VirtualAudio.DspBufferSize);
+			lock (_bufferStatisticsLock)
+				_bufferStatistics.lastReceivedAudioFrameTime = AudioSettings.dspTime;
+
+			if (audio.NoChannels != 0 || audio.NoSamples != 0)
+			{
+				_initWaitForAudioBufferFillUp = false;
+				FillAudioBuffer(audio);
+			}
+			_recv.FreeAudioFrame(audio);
 		}
 	}
 
@@ -227,22 +304,39 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 			    Interop.AudioFrame audio;
 				
-			    var hasAudio = _recv.CaptureAudio(out audio, 10);
-			    if (hasAudio)
+			    if (_recv.FrameSyncEnabled)
 			    {
-				    lock (_bufferStatisticsLock)
-					    _bufferStatistics.lastReceivedAudioFrameTime = AudioSettings.dspTime;
-
-				    if (_receiveAudio)
-				    {
-					    FillAudioBuffer(audio);
-				    }
-				    
-				    _recv.FreeAudioFrame(audio);
-				    //mainThreadContext.Post(ProcessAudioFrame, audio);
+				    Thread.Sleep(100);
+				    // _recv.CaptureFrameSyncAudio(out audio, VirtualAudio.DspBufferSize);
+				    // lock (_bufferStatisticsLock)
+					   //  _bufferStatistics.lastReceivedAudioFrameTime = AudioSettings.dspTime;
+				    //
+				    // if (_receiveAudio)
+				    // {
+					   //  FillAudioBuffer(audio);
+				    // }
+					   //  
+				    // _recv.FreeAudioFrame(audio);
 			    }
-			
-		    }
+			    else
+			    {
+			    
+				    var hasAudio = _recv.CaptureAudio(out audio, 10);
+				    if (hasAudio)
+				    {
+					    lock (_bufferStatisticsLock)
+						    _bufferStatistics.lastReceivedAudioFrameTime = AudioSettings.dspTime;
+
+					    if (_receiveAudio)
+					    {
+						    FillAudioBuffer(audio);
+					    }
+					    
+					    _recv.FreeAudioFrame(audio);
+					    //mainThreadContext.Post(ProcessAudioFrame, audio);
+				    }
+			    }
+			}
 	    }
 	    catch (System.Exception e)
 	    {
@@ -251,6 +345,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
     }
     
     private int _lastFrameUpdate = -1;
+    private VideoFrame _lastVideoFrame;
+    private RenderTexture _decoderResult;
     
 	void ProcessVideoFrame(System.Object data)
 	{
@@ -263,14 +359,15 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			_recv.FreeVideoFrame(videoFrame);
 			return;
 		}
-
+		_lastVideoFrame = videoFrame;
+		
 		_lastFrameUpdate = Time.frameCount;
 		
 		// Pixel format conversion
 		var rt = _converter.Decode
 			(videoFrame.Width, videoFrame.Height,
 			Util.HasAlpha(videoFrame.FourCC), videoFrame.Data);
-
+		_decoderResult = rt;
 		// Copy the metadata if any.
 		metadata = videoFrame.Metadata;
 
@@ -291,6 +388,27 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		if (_targetTexture != null)
 			Graphics.Blit(rt, _targetTexture);
 
+	}
+
+	void ProcessVideoFrame2()
+	{
+		// Free the frame up.
+		_recv.FreeVideoFrame(_lastVideoFrame);
+
+		if (_decoderResult == null) return;
+
+		// Material property override
+		if (_targetRenderer != null)
+		{
+			_targetRenderer.GetPropertyBlock(_override);
+			_override.SetTexture(_targetMaterialProperty, _decoderResult);
+			_targetRenderer.SetPropertyBlock(_override);
+		}
+
+		// External texture update
+		if (_targetTexture != null)
+			Graphics.Blit(_decoderResult, _targetTexture);
+		
 	}
 
 	void ProcessMetadataFrame(System.Object data)
@@ -350,7 +468,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private Vector3[] _receivedSpeakerPositions;
 	private bool _receivingObjectBasedAudio = false;
 	public Action<AudioFrame> OnAudioFrameReceived;
-
+	public Action<VideoFrame> OnVideoFrameReceived;
 	
 	public Vector3[] GetReceivedSpeakerPositions()
 	{
@@ -441,8 +559,11 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	}
 
 	// Automagically called by Unity when an AudioSource component is present on the same GameObject
-	void OnAudioFilterRead(float[] data, int channels)
+	private void OnAudioFilterRead(float[] data, int channels)
 	{
+		if (useFrameSync)
+			ReceiveAudioSync();
+		
 		if ((object)_audioSource == null)
 			return;
 
@@ -513,13 +634,31 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			int removedFrames = 0;
 			lock (audioBufferLock)
 			{
-				_newAudioFramesBuffer.Add(frame);
-				while ((_newAudioFramesBuffer.Count*audioFrame.NoSamples) > _MaxBufferSampleSize)
+				if (_recv.FrameSyncEnabled)
 				{
-					var f = _newAudioFramesBuffer[0];
-					_newAudioFramesBuffer.RemoveAt(0);
-					_audioFramesPool.Enqueue(f);
-					removedFrames++;
+					while (_audioFramesBuffer.Count > 0)
+					{
+						_audioFramesPool.Enqueue(_audioFramesBuffer[0]);
+						_audioFramesBuffer.RemoveAt(0);
+					}
+					while (_newAudioFramesBuffer.Count > 0)
+					{
+						_audioFramesPool.Enqueue(_newAudioFramesBuffer[0]);
+						_newAudioFramesBuffer.RemoveAt(0);
+					}
+					_audioFramesBuffer.Add(frame);
+				}
+				else
+				{
+					
+					_newAudioFramesBuffer.Add(frame);
+					while ((_newAudioFramesBuffer.Count*audioFrame.NoSamples) > _MaxBufferSampleSize)
+					{
+						var f = _newAudioFramesBuffer[0];
+						_newAudioFramesBuffer.RemoveAt(0);
+						_audioFramesPool.Enqueue(f);
+						removedFrames++;
+					}
 				}
 
 				UpdateAudioStatistics(removedFrames);
@@ -753,6 +892,31 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 	internal bool PullNextAudioFrame(int frameSize, int channels)
 	{
+		void SendAdm()
+		{
+			if (_audioFramesBuffer.Count > 0 && _audioFramesBuffer[0].speakerPositions != null)
+			{
+				lock (_audioMetaLock)
+				{
+					var admData = new AdmData();
+					admData.positions = _audioFramesBuffer[0].speakerPositions.AsEnumerable();
+					admData.gains = _audioFramesBuffer[0].gains.AsEnumerable();
+					lock (_admEventLock)
+						_onAdmDataChanged?.Invoke(admData);
+						
+					_receivingObjectBasedAudio = _audioFramesBuffer[0].isObjectBased;
+					_updateAudioMetaSpeakerSetup = true;
+					if (_receivedSpeakerPositions == null || _receivedSpeakerPositions.Length !=
+					    _audioFramesBuffer[0].speakerPositions.Length)
+						_receivedSpeakerPositions = _audioFramesBuffer[0].speakerPositions;
+					else
+						Array.Copy(_audioFramesBuffer[0].speakerPositions, _receivedSpeakerPositions,
+							_receivedSpeakerPositions.Length);
+				}
+			}
+		}
+		
+		
 		int removeCounter = 0;
 		using (PULL_NEXT_AUDIO_FRAME_MARKER.Auto())
 		{
@@ -762,6 +926,12 @@ public sealed partial class NdiReceiver : MonoBehaviour
 					_audioFramesBuffer.Add(_newAudioFramesBuffer[i]);
 				_newAudioFramesBuffer.Clear();
 
+				if (_recv.FrameSyncEnabled)
+				{
+					SendAdm();
+					return _audioFramesBuffer.Count > 0;
+				}
+				
 				if (_audioFramesBuffer.Count > 0 && (_audioFramesBuffer[0].samplesPerChannel*_audioFramesBuffer.Count) > _MaxBufferSampleSize)
 				{
 					// Reduce the buffer size if it is too big to the minimal size
@@ -773,6 +943,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 						_audioFramesPool.Enqueue(f);
 					}
 				}
+
 
 				if (_initWaitForAudioBufferFillUp)
 				{
@@ -848,26 +1019,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 					return false;
 				}
 
-				if (_audioFramesBuffer.Count > 0 && _audioFramesBuffer[0].speakerPositions != null)
-				{
-					lock (_audioMetaLock)
-					{
-						var admData = new AdmData();
-						admData.positions = _audioFramesBuffer[0].speakerPositions.AsEnumerable();
-						admData.gains = _audioFramesBuffer[0].gains.AsEnumerable();
-						lock (_admEventLock)
-							_onAdmDataChanged?.Invoke(admData);
-						
-						_receivingObjectBasedAudio = _audioFramesBuffer[0].isObjectBased;
-						_updateAudioMetaSpeakerSetup = true;
-						if (_receivedSpeakerPositions == null || _receivedSpeakerPositions.Length !=
-						    _audioFramesBuffer[0].speakerPositions.Length)
-							_receivedSpeakerPositions = _audioFramesBuffer[0].speakerPositions;
-						else
-							Array.Copy(_audioFramesBuffer[0].speakerPositions, _receivedSpeakerPositions,
-								_receivedSpeakerPositions.Length);
-					}
-				}
+				SendAdm();
 
 				return true;
 			}
