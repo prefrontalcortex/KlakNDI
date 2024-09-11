@@ -40,9 +40,13 @@ namespace Klak.Ndi.Audio.NAudio
                 _asioOut.Stop();
                 _asioOut.Dispose();
                 _sampleProvider.Dispose();
+                _asioOut = null;
             }
 
             _currentDriverName = name;
+            if (string.IsNullOrEmpty(name))
+                return;
+            
             _asioOut = new AsioOut(_currentDriverName);
             
             ISampleProvider virtualAudioSampleProvider;
@@ -108,7 +112,7 @@ namespace Klak.Ndi.Audio.NAudio
                     || t.senderReceiverMode == SenderReceiverMode.AudioListener)
                 {
                     if (t.senderReceiverMode == SenderReceiverMode.NdiSender)
-                        EditorGUILayout.HelpBox(new GUIContent("Asio Out is only supported when using a Virtual Audio Mode on the NDI Sender"));
+                        EditorGUILayout.HelpBox(new GUIContent("Asio Out in NdiSender Mode is only supported when using a Virtual Audio Mode on the NDI Sender"));
                     
                     EditorGUI.BeginChangeCheck();
                     DrawPropertiesExcluding(serializedObject, "_receiver");
