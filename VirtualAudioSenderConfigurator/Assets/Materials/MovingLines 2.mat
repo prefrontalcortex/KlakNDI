@@ -105,8 +105,8 @@ Material:
     - _Glossiness: 0.5
     - _GlossyReflections: 1
     - _Line1Count: 4
-    - _Line1Speed: 0.2
-    - _Line1Width: 0.01
+    - _Line1Speed: 0.1
+    - _Line1Width: 0.02
     - _Metallic: 0
     - _Mode: 0
     - _OcclusionStrength: 1
