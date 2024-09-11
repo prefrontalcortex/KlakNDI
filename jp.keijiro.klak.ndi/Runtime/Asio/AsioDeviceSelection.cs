@@ -53,7 +53,10 @@ namespace Klak.Ndi.Audio.NAudio
         private void OnDropdownValueChanged(int selectedIndex)
         {
             if (selectedIndex == 0)
+            {
+                virtualAudioAsio.SetAsioDevice(null);
                 return;
+            }
 
             _selectedDriverName = _driverNames[selectedIndex - 1];
             virtualAudioAsio.SetAsioDevice(_selectedDriverName);
