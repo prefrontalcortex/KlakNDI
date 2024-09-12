@@ -740,9 +740,12 @@ public sealed partial class NdiSender : MonoBehaviour
         if (!willBeActive)
         {
             _videoSendThreadCancelTokenSource?.Cancel();
-            _videoSendThreadClocked?.Wait();
+            if (_videoSendThreadClocked != null && !_videoSendThreadClocked.IsCanceled)
+                _videoSendThreadClocked?.Wait();
+            _videoSendThreadCancelTokenSource?.Dispose();
             _videoSendThreadClocked?.Dispose();
             _videoSendThreadClocked = null;
+            _videoSendThreadCancelTokenSource = null;
             return;
         }
 
@@ -765,9 +768,14 @@ public sealed partial class NdiSender : MonoBehaviour
         }
 
         _videoSendThreadCancelTokenSource?.Cancel();
-        _videoSendThreadClocked?.Wait();
+        if (_videoSendThreadClocked != null && !_videoSendThreadClocked.IsCanceled)
+            _videoSendThreadClocked?.Wait();
         
+        _videoSendThreadCancelTokenSource?.Dispose();
         _videoSendThreadClocked?.Dispose();
+        _videoSendThreadCancelTokenSource = null;
+        _videoSendThreadClocked = null;
+        
         _videoSendThreadCancelTokenSource = new CancellationTokenSource();
         _videoSendThreadCancelToken = _videoSendThreadCancelTokenSource.Token;
 
