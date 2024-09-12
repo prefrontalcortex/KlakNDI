@@ -402,7 +402,8 @@ public sealed partial class NdiSender : MonoBehaviour
             AudioMeta.GenerateObjectBasedConfigXmlMetaData(_objectBasedPositions, _objectBasedGains) 
             : AudioMeta.GenerateSpeakerConfigXmlMetaData();
         
-        _metaDataPtr = Marshal.StringToCoTaskMemAnsi(xml);    
+        if (!string.IsNullOrEmpty(xml))
+            _metaDataPtr = Marshal.StringToCoTaskMemAnsi(xml);
     }
     
     private void SendAudioListenerData(float[] data, int channels)

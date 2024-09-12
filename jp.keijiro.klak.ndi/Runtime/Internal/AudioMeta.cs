@@ -88,6 +88,8 @@ namespace Klak.Ndi
             // Write in xmlMeta all Speaker positions
             var root = xmlMeta.CreateElement("VirtualSpeakers");
             var listenerPositions = VirtualAudio.GetListenersRelativePositions();
+            if (listenerPositions == null)
+                return null;
             foreach (var pos in listenerPositions)
             {
                 var speakerNode = xmlMeta.CreateElement("Speaker");
