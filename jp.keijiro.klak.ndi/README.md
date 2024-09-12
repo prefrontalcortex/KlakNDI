@@ -13,6 +13,16 @@ refer to [ndi.video][NDI] for more information about the technology.
 [NDI]: https://ndi.video/
 [Vizrt]: https://www.vizrt.com
 
+Modifications by prefrontal cortex
+-------------------
+- Added NDI Audio support 
+- Virtual Audio Spatializer to capture multiple audio streams for object-based audio and multi-channel audio
+- OSC integration for object-based audio
+- ASIO output support for virtual audio and AudioListener
+- Test applications for NDI sending/receiving added to the repository
+- Added support for Android 32+ (for example Meta Quest)
+- Better support for variable frame rates / frame limiting
+
 System Requirements
 -------------------
 
