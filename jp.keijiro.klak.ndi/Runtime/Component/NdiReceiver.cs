@@ -517,9 +517,12 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	}
 
 	internal bool FillPassthroughData(ref float[] data, int channelCountInData)
-	{ 
+	{
 		if (!PullNextAudioFrame(data.Length / channelCountInData, channelCountInData))
+		{
 			Array.Fill(data, 0f);
+			return false;
+		}
 
 		using (FILL_AUDIO_CHANNEL_DATA_MARKER.Auto())
 		{
