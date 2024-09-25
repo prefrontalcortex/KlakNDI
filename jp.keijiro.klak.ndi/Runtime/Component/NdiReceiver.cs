@@ -28,24 +28,35 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	private ReceiverPerformance _performance;
 	private ReceiverPerformance _dropped;
 	private ReceiverQueue _queue;
+	private Task audioTask;
 	
     void PrepareReceiverObjects()
     {
 	    if (_lastBandwidth != _bandwidth)
 	    {
 		    _lastBandwidth = _bandwidth;
-		    _recv?.Dispose();
-		    _recv = null;
+		    ReleaseReceiverObjects();
 	    }
-	    
-        if (_recv == null) _recv = RecvHelper.TryCreateRecv(ndiName, _bandwidth);
+
+	    if (_recv == null)
+	    {
+		    _recv = RecvHelper.TryCreateRecv(ndiName, _bandwidth);
+		    tokenSource = new CancellationTokenSource();
+		    cancellationToken = tokenSource.Token;
+
+			audioTask = Task.Run(ReceiveAudioFrameTask, cancellationToken);
+	    }
         if (_converter == null) _converter = new FormatConverter(_resources);
         if (_override == null) _override = new MaterialPropertyBlock();
     }
 
     void ReleaseReceiverObjects()
     {
-        _recv?.Dispose();
+	    tokenSource?.Cancel();
+	    if (audioTask != null)
+		    audioTask.Wait();
+	    
+	    _recv?.Dispose();
         _recv = null;
 
         _converter?.Dispose();
@@ -68,12 +79,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		mainThreadContext = SynchronizationContext.Current;
 
 		if (_override == null) _override = new MaterialPropertyBlock();
-
-		tokenSource = new CancellationTokenSource();
-		cancellationToken = tokenSource.Token;
 		
-		Task.Run(ReceiveAudioFrameTask, cancellationToken);
-
 		UpdateAudioExpectations();
 		AudioSettings.OnAudioConfigurationChanged += AudioSettings_OnAudioConfigurationChanged;
 		CheckPassthroughAudioSource();
@@ -101,12 +107,15 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 	void OnDestroy()
 	{
-		while (_audioFramesPool.Count > 0)
-			_audioFramesPool.Dequeue().Dispose();
-		while (_audioFramesBuffer.Count > 0)
+		lock (audioBufferLock)
 		{
-			_audioFramesBuffer[0].Dispose();
-			_audioFramesBuffer.RemoveAt(0);
+			while (_audioFramesPool.Count > 0)
+				_audioFramesPool.Dequeue().Dispose();
+			while (_audioFramesBuffer.Count > 0)
+			{
+				_audioFramesBuffer[0].Dispose();
+				_audioFramesBuffer.RemoveAt(0);
+			}
 		}
 		
 		tokenSource?.Cancel();
@@ -226,7 +235,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 					    FillAudioBuffer(audio);
 				    }
 				    
-				    _recv.FreeAudioFrame(audio);
+				    if (_recv != null)
+						_recv.FreeAudioFrame(audio);
 				    //mainThreadContext.Post(ProcessAudioFrame, audio);
 			    }
 			
@@ -482,7 +492,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	
 	private AudioFrameData AddAudioFrameToQueue(AudioFrame audioFrame)
 	{
-		if (audioFrame.NoSamples == 0)
+		if (audioFrame.NoSamples == 0 || audioFrame.Data == IntPtr.Zero)
 			return null;
 		
 		using (ADD_AUDIO_FRAME_TO_QUEUE_MARKER.Auto())
@@ -1186,10 +1196,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 
 	void FillAudioBuffer(Interop.AudioFrame audio)
 	{
-		if (_recv == null)
-		{
+		if (_recv == null || audio.NoChannels == 0 || audio.Data == IntPtr.Zero)
 			return;
-		}
 		
 		bool settingsChanged = false;
 		if (audio.SampleRate != _receivedAudioSampleRate)

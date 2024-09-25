@@ -109,9 +109,7 @@ namespace Klak.Ndi
 
 						// Grab data from native array
 						var tempSamplesPtr = data.GetUnsafePtr();
-						//var tempSamplesPtr = UnsafeUtility.PinGCArrayAndGetDataAddress(data, out ulong tempSamplesHandle);
 						UnsafeUtility.MemCpy(tempSamplesPtr, audioDataPtr, sizeInBytes);
-						//UnsafeUtility.ReleaseGCObject(tempSamplesHandle);
 					}
 				}
 			}
