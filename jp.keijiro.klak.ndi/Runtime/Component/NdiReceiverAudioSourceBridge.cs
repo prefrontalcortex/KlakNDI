@@ -62,7 +62,10 @@ namespace Klak.Ndi
 		private void OnAudioFilterRead(float[] data, int channels)
 		{
 			if (!_handler)
+			{
+				Array.Fill(data, 0f);	
 				return;
+			}
 			
 			if (_customChannel != -1)
 			{
