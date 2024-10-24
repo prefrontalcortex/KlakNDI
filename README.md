@@ -23,6 +23,29 @@ Modifications by prefrontal cortex
 - Added support for Android 32+ (for example Meta Quest)
 - Better support for variable frame rates / frame limiting
 
+Installer link:
+[Download Installer](http://package-installer.glitch.me/v1/installer/OpenUPM/com.pfc.jp.keijiro.klak.ndi?registry=https://package.openupm.com)
+
+Registry setup:
+```json
+  "scopedRegistries": [
+    {
+      "name": "OpenUPM",
+      "url": "https://package.openupm.com",
+      "scopes": [
+        "org.nuget.system",
+        "com.pfc.jp.keijiro.klak.ndi",
+        "jp.keijiro.osc-jack"
+      ]
+    }
+  ]
+```
+
+and install
+```json
+"com.pfc.jp.keijiro.klak.ndi": "2.1.3-pfc.3"
+``` 
+
 System Requirements
 -------------------
 
