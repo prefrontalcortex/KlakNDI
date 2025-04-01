@@ -41,6 +41,8 @@ public sealed partial class NdiReceiver : MonoBehaviour
 	    if (_recv == null)
 	    {
 		    _recv = RecvHelper.TryCreateRecv(ndiName, _bandwidth);
+		    if (_recv == null)
+			    return;
 		    tokenSource = new CancellationTokenSource();
 		    cancellationToken = tokenSource.Token;
 
