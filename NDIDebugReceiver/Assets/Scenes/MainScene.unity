@@ -1251,6 +1251,7 @@ MonoBehaviour:
   _createVirtualSpeakers: 1
   _resources: {fileID: 11400000, guid: 69304b86950074db7ba8caba75214004, type: 2}
   virtualSpeakerDistances: 10
+  receivedVirtualSpeakerPositionAsWorldPosition: 0
 --- !u!4 &1281742058
 Transform:
   m_ObjectHideFlags: 0

@@ -5,11 +5,7 @@ using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 #endif
 public class VersionText : MonoBehaviour
-#if UNITY_EDITOR
-    ,IPreprocessBuildWithReport
-#endif
 {
-    // Start is called before the first frame update
     void Start()
     {
         OnValidate();
@@ -24,24 +20,22 @@ public class VersionText : MonoBehaviour
         }
     }
     
-    // Automatic add minor version when building the project
-
-    
 #if UNITY_EDITOR
     [UnityEditor.MenuItem("Increment Version/Add Minor Version")]
     public static void AddMinorVersion()
     {
         string version = UnityEditor.PlayerSettings.bundleVersion;
         string[] versionParts = version.Split('.');
-        if (versionParts.Length < 3)
+        if (versionParts.Length < 2)
         {
-            version = "1.0.0";
+            version = "1.0";
             versionParts = version.Split('.');
         }
 
         int minorVersion = int.Parse(versionParts[1]);
         minorVersion++;
         versionParts[1] = minorVersion.ToString();
+        
         string newVersion = string.Join(".", versionParts);
         UnityEditor.PlayerSettings.bundleVersion = newVersion;
 
@@ -57,15 +51,16 @@ public class VersionText : MonoBehaviour
     {
         string version = UnityEditor.PlayerSettings.bundleVersion;
         string[] versionParts = version.Split('.');
-        if (versionParts.Length < 3)
+        if (versionParts.Length < 2)
         {
-            version = "1.0.0";
+            version = "1.0";
             versionParts = version.Split('.');
         }
 
         int majorVersion = int.Parse(versionParts[0]);
         majorVersion++;
         versionParts[0] = majorVersion.ToString();
+        versionParts[1] = "0";
         string newVersion = string.Join(".", versionParts);
         UnityEditor.PlayerSettings.bundleVersion = newVersion;
 
@@ -75,37 +70,5 @@ public class VersionText : MonoBehaviour
         
         Debug.Log("Version updated to: " + newVersion);
     }
-    
-    public static void AddBuildVersion()
-    {
-        string version = UnityEditor.PlayerSettings.bundleVersion;
-        string[] versionParts = version.Split('.');
-        if (versionParts.Length < 3)
-        {
-            version = "1.0.0";
-            versionParts = version.Split('.');
-        }
-        int buildVersion = int.Parse(versionParts[2]);
-        buildVersion++;
-        versionParts[2] = buildVersion.ToString();
-        string newVersion = string.Join(".", versionParts);
-        UnityEditor.PlayerSettings.bundleVersion = newVersion;
-
-        var versionsTexts = FindObjectsOfType<VersionText>();
-        foreach (var versionText in versionsTexts)
-            versionText.OnValidate();
-        
-        Debug.Log("Version updated to: " + newVersion);
-    }
-
-    public int callbackOrder
-    {
-        get => 0;
-    }
-    
-    public void OnPreprocessBuild(BuildReport report)
-    {
-        AddBuildVersion();
-    }
-    #endif
+#endif
 }
