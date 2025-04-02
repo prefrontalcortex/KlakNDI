@@ -145,11 +145,12 @@ public sealed partial class NdiSender : MonoBehaviour
         VirtualAudio.ClearAllVirtualSpeakerListeners();
 
         float distance = virtualListenerDistance;
-        VirtualAudio.AddListener( new Vector3(-distance, 0f, distance), 1f);
-        VirtualAudio.AddListener( new Vector3(distance, 0f, distance), 1f);
         
-        VirtualAudio.AddListener( new Vector3(-distance, 0f, -distance), 1f);
-        VirtualAudio.AddListener( new Vector3(distance, 0f, -distance), 1f);
+        VirtualAudio.AddListener( new Vector3(-1, 0f, 1).normalized * distance, 1f);
+        VirtualAudio.AddListener( new Vector3(1, 0f, 1).normalized * distance, 1f);
+        
+        VirtualAudio.AddListener( new Vector3(-1, 0f, -1).normalized * distance, 1f);
+        VirtualAudio.AddListener( new Vector3(1, 0f, -1).normalized * distance, 1f);
     }    
     
     private void CreateAudioSetup_5point1()
@@ -158,14 +159,14 @@ public sealed partial class NdiSender : MonoBehaviour
         VirtualAudio.ClearAllVirtualSpeakerListeners();
 
         float distance = virtualListenerDistance;
-        VirtualAudio.AddListener( new Vector3(-distance, 0f, distance), 1f);
-        VirtualAudio.AddListener( new Vector3(distance, 0f, distance), 1f);
+        VirtualAudio.AddListener( new Vector3(-1, 0f, 1).normalized * distance, 1f);
+        VirtualAudio.AddListener( new Vector3(1, 0f, 1).normalized * distance, 1f);
         
-        VirtualAudio.AddListener( new Vector3(0f, 0f, distance), 1f);
+        VirtualAudio.AddListener( new Vector3(0f, 0f, 1).normalized * distance, 1f);
         VirtualAudio.AddListener( new Vector3(0f, 0f, 0f), 0f);
         
-        VirtualAudio.AddListener( new Vector3(-distance, 0f, -distance), 1f);
-        VirtualAudio.AddListener( new Vector3(distance, 0f, -distance), 1f);
+        VirtualAudio.AddListener( new Vector3(-1, 0f, -1).normalized * distance, 1f);
+        VirtualAudio.AddListener( new Vector3(1, 0f, -1).normalized * distance, 1f);
     }
 
     private void CreateAudioSetup_7point1()
@@ -174,17 +175,17 @@ public sealed partial class NdiSender : MonoBehaviour
         VirtualAudio.ClearAllVirtualSpeakerListeners();
 
         float distance = virtualListenerDistance;
-        VirtualAudio.AddListener( new Vector3(-distance, 0f, distance), 1f);
-        VirtualAudio.AddListener( new Vector3(distance, 0f, distance), 1f);
+        VirtualAudio.AddListener( new Vector3(-1, 0f, 1).normalized * distance, 1f);
+        VirtualAudio.AddListener( new Vector3(1, 0f, 1).normalized * distance, 1f);
         
-        VirtualAudio.AddListener( new Vector3(0f, 0f, distance), 1f);
+        VirtualAudio.AddListener( new Vector3(0f, 0f, 1).normalized * distance, 1f);
         VirtualAudio.AddListener( new Vector3(0f, 0f, 0f), 0f);
 
-        VirtualAudio.AddListener( new Vector3(-distance, 0f, 0), 1f);
-        VirtualAudio.AddListener( new Vector3(distance, 0f, 0), 1f);
+        VirtualAudio.AddListener( new Vector3(-1, 0f, 0).normalized * distance, 1f);
+        VirtualAudio.AddListener( new Vector3(1, 0f, 0).normalized * distance, 1f);
         
-        VirtualAudio.AddListener( new Vector3(-distance, 0f, -distance), 1f);
-        VirtualAudio.AddListener( new Vector3(distance, 0f, -distance), 1f);
+        VirtualAudio.AddListener( new Vector3(-1, 0f, -1).normalized * distance, 1f);
+        VirtualAudio.AddListener( new Vector3(1, 0f, -1).normalized * distance, 1f);
     }
 
     private void CreateAudioSetup_32Array()
