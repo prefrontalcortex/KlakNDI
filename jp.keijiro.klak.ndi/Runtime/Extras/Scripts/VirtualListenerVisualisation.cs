@@ -13,6 +13,7 @@ public class VirtualListenerVisualisation : MonoBehaviour
     private void UpdateSpeakers()
     {
         var listenersPositions = VirtualAudio.GetListenersPositions();
+        var listenerVolumes = VirtualAudio.GetListenersVolume();
 
         if (listenersPositions == null)
         {
@@ -41,7 +42,7 @@ public class VirtualListenerVisualisation : MonoBehaviour
         var centerPos = VirtualAudio.AudioOrigin.position;
         
         for (int i = 0; i < _speakers.Count; i++)
-            _speakers[i].gameObject.SetActive(i < listenersPositions.Length);
+            _speakers[i].gameObject.SetActive(i < listenersPositions.Length && listenerVolumes[i] > 0f);
         
         for (int i = 0; i < listenersPositions.Length; i++)
             _speakers[i].SetPositionAndRotation(listenersPositions[i], listenersPositions[i] == Vector3.zero ? Quaternion.LookRotation(Vector3.back) : Quaternion.LookRotation(centerPos-listenersPositions[i].normalized));
