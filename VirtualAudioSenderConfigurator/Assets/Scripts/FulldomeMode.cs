@@ -2,15 +2,30 @@ using System;
 using Klak.Ndi;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 public class FulldomeMode : MonoBehaviour
 {
+    public enum Mode
+    {
+        Fisheye,
+        Cubemap
+    }
+    
+    public Mode mode;
     [SerializeField] private Camera _ndiCamera;
     [SerializeField] private NdiSender _ndiSender;
     [SerializeField] private Toggle _toggle;
     [SerializeField] private Transform _fullDomeAudioOrigin;
     [SerializeField] private Transform _defaultAudioOrigin;
+    [SerializeField] private GameObject _domeGrid;
+    [SerializeField] private Transform domeVisual;
+    [SerializeField] private Slider domeRadiusSlider;
+    
+    [Header("Cubemap Settings")]
+    [SerializeField] private RealtimeCubemap _realtimeCubemap;
+    [Header("FishEye Settings")]
     [SerializeField] private Material _fullDomeMaterial;
     
     [Range(1f, 2f)]
@@ -28,14 +43,23 @@ public class FulldomeMode : MonoBehaviour
 
     public float domeRadius = 20f;
     public Vector3 CameraOffset => _ndiCamera.transform.localPosition;
-
-
+    
     private RenderTexture _cameraTarget;
+    
     private void Awake()
     {
         _toggle.onValueChanged.AddListener(OnToggleValueChanged);
         _toggle.isOn = false;
         _cameraTarget = _ndiCamera.targetTexture;
+        _realtimeCubemap.gameObject.SetActive(false);
+        _domeGrid.SetActive(false);
+        domeRadiusSlider.onValueChanged.AddListener(OnDomeRadiusChanged);
+        OnDomeRadiusChanged(domeRadiusSlider.value);
+    }
+
+    private void OnDomeRadiusChanged(float domeRadius)
+    {
+        domeVisual.localScale = Vector3.one * domeRadius;
     }
 
     public void UpdateTextures()
@@ -43,8 +67,38 @@ public class FulldomeMode : MonoBehaviour
         _cameraTarget = _ndiCamera.targetTexture;
         if (_toggle.isOn)
         {
-            AssignTempTarget();
+            switch (mode)
+            {
+                case Mode.Fisheye:
+                    AssignTempTarget();
+                    break;
+                case Mode.Cubemap:
+                    _realtimeCubemap.targetTexture = _cameraTarget;
+                    break;
+            }
         }
+    }
+
+    private void ActivateFisheye()
+    {
+        RenderPipelineManager.endCameraRendering += OnEndCameraRendering;
+        AssignTempTarget();
+    }
+
+    private void ActivateCubemap()
+    {
+        _realtimeCubemap.targetTexture = _cameraTarget;
+        _ndiCamera.gameObject.SetActive(false);
+        _realtimeCubemap.gameObject.SetActive(true);
+    }
+
+    private void Deactivate()
+    {
+        _domeGrid.SetActive(false);
+
+        RenderPipelineManager.endCameraRendering -= OnEndCameraRendering;
+        _ndiCamera.targetTexture = _cameraTarget;
+        _ndiCamera.gameObject.SetActive(true);
     }
     
     private void OnToggleValueChanged(bool isOn)
@@ -53,13 +107,22 @@ public class FulldomeMode : MonoBehaviour
         
         if (isOn)
         {
-            RenderPipelineManager.endCameraRendering += OnEndCameraRendering;
-            AssignTempTarget();
+            _domeGrid.SetActive(true);
+
+            switch (mode)
+            {
+                case Mode.Fisheye:
+                    ActivateFisheye();
+                    break;
+                case Mode.Cubemap:
+                    ActivateCubemap();
+                    break;
+            }
+            ActivateFisheye();
         }
         else
         {
-            RenderPipelineManager.endCameraRendering -= OnEndCameraRendering;
-            _ndiCamera.targetTexture = _cameraTarget;
+            Deactivate();
         }
     }
 
@@ -80,12 +143,12 @@ public class FulldomeMode : MonoBehaviour
     private void OnEndCameraRendering(ScriptableRenderContext arg1, Camera arg2)
     {
         if (arg2 != _ndiCamera) return;
-        SetMaterialParams(_fullDomeMaterial);
+        SetFisheyeMaterialParams(_fullDomeMaterial);
         _fullDomeMaterial.mainTexture = arg2.targetTexture;
         Graphics.Blit(arg2.targetTexture, _cameraTarget, _fullDomeMaterial, 0);
     }
     
-    void SetMaterialParams(Material material)
+    void SetFisheyeMaterialParams(Material material)
     {
         if(!material) return;
        

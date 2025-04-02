@@ -20,6 +20,8 @@ public class VirtualAudioSettings : MonoBehaviour
     
     private void Awake()
     {
+        _defaultSpeakerDistances.value = _ndiSender.virtualListenerDistance;
+        
         _playerCenteredAudioOnAllSpeakersToggle.onValueChanged.AddListener(OnPlayerCenteredAudioOnAllSpeakersToggle);
         _maxObjectsBasedAudioSlider.onValueChanged.AddListener(OnMaxObjectsBasedAudioSlider);
         _attenuationFromCameraPositionToggle.onValueChanged.AddListener(OnAttenuationFromCameraPositionToggle);

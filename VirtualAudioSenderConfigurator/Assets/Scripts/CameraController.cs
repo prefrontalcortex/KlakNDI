@@ -30,13 +30,13 @@ public class CameraController : MonoBehaviour
         var scroll = Input.mouseScrollDelta;
         if (scroll.y != 0)
         {
-            _zoomTransform.localPosition += Vector3.up * scroll.y;
+            _zoomTransform.localPosition += Vector3.up * -scroll.y;
             if (_zoomTransform.localPosition.y < 4)
                 _zoomTransform.localPosition = Vector3.up * 4f;
             if (_zoomTransform.localPosition.y > 40)
                 _zoomTransform.localPosition = Vector3.up * 40f;
         }
-        if (Input.GetMouseButton(2))
+        if (Input.GetMouseButton(1))
         {
             var oldRotx = _xRotationTransform.localRotation;
             
