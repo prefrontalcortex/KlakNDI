@@ -941,10 +941,10 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			Vector3 position = Vector3.zero;
 			switch (i)
 			{
-				case 0 : position = new Vector3(-dist, 0, dist); break;
-				case 1 : position = new Vector3(dist, 0, dist); break;
-				case 4 : position = new Vector3(-dist, 0, -dist); break;
-				case 5 : position = new Vector3(dist, 0, -dist); break;
+				case 0 : position = new Vector3(-1, 0, 1).normalized * dist; break;
+				case 1 : position = new Vector3(1, 0, 1).normalized * dist; break;
+				case 4 : position = new Vector3(-1, 0, -1).normalized * dist; break;
+				case 5 : position = new Vector3(1, 0, -1).normalized * dist; break;
 			}
 
 			if (isNew)
@@ -968,12 +968,12 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			Vector3 position = Vector3.zero;
 			switch (i)
 			{
-				case 0 : position = new Vector3(-dist, 0, dist); break;
-				case 1 : position = new Vector3(dist, 0, dist); break;
-				case 2 : position = new Vector3(0, 0, dist); break;
+				case 0 : position = new Vector3(-1, 0, 1).normalized * dist; break;
+				case 1 : position = new Vector3(1, 0, 1).normalized * dist; break;
+				case 2 : position = new Vector3(0, 0, 1).normalized * dist; break;
 				case 3 : position = new Vector3(0, 0, 0); break;
-				case 4 : position = new Vector3(-dist, 0, -dist); break;
-				case 5 : position = new Vector3(dist, 0, -dist); break;
+				case 4 : position = new Vector3(-1, 0, -1).normalized * dist; break;
+				case 5 : position = new Vector3(1, 0, -1).normalized * dist; break;
 			}
 			
 			if (isNew)
@@ -998,14 +998,14 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			Vector3 position = Vector3.zero;
 			switch (i)
 			{
-				case 0 : position = new Vector3(-dist, 0, dist); break;
-				case 1 : position = new Vector3(dist, 0, dist); break;
-				case 2 : position = new Vector3(0, 0, dist); break;
+				case 0 : position = new Vector3(-1, 0, 1).normalized * dist; break;
+				case 1 : position = new Vector3(1, 0, 1).normalized * dist; break;
+				case 2 : position = new Vector3(0, 0, 1).normalized * dist; break;
 				case 3 : position = new Vector3(0, 0, 0); break;
-				case 4 : position = new Vector3(-dist, 0, 0); break;
-				case 5 : position = new Vector3(dist, 0, 0); break;
-				case 6 : position = new Vector3(-dist, 0, -dist); break;
-				case 7 : position = new Vector3(dist, 0, -dist); break;
+				case 4 : position = new Vector3(-1, 0, 0).normalized * dist; break;
+				case 5 : position = new Vector3(1, 0, 0).normalized * dist; break;
+				case 6 : position = new Vector3(-1, 0, -1).normalized * dist; break;
+				case 7 : position = new Vector3(1, 0, -1).normalized * dist; break;
 			}
 			
 			if (isNew)
