@@ -25,6 +25,8 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
     private AutoProperty _createVirtualSpeakers;
     private AutoProperty _receiveAudio;
     private AutoProperty _bandwidth;
+    private AutoProperty virtualSpeakerDistances;
+    private AutoProperty receivedVirtualSpeakerPositionAsWorldPosition;
     
     #pragma warning restore
     private bool _foldOutChannelIncome = true;
@@ -130,6 +132,13 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
                 , MessageType.Info);
             EditorGUILayout.PropertyField(_audioSource);
             EditorGUI.indentLevel--;
+        }
+
+        if (currentIndex <= 1)
+        {
+            EditorGUILayout.PropertyField(virtualSpeakerDistances);
+            EditorGUILayout.PropertyField(receivedVirtualSpeakerPositionAsWorldPosition);
+            
         }
         var audioSourceChanged = EditorGUI.EndChangeCheck();
         if (currentIndex != newIndex)

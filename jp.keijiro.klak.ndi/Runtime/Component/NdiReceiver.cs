@@ -1042,10 +1042,19 @@ public sealed partial class NdiReceiver : MonoBehaviour
 				{
 					var tr = _virtualSpeakers[i].speakerAudio.transform;
 					// TODO: figure out how to best lerp the position 
-					tr.position = speakerPositions[i];// Vector3.Lerp(tr.position, speakerPositions[i], Time.deltaTime * 5f);
+					if (receivedVirtualSpeakerPositionAsWorldPosition)
+						tr.position =
+							speakerPositions[i]; // Vector3.Lerp(tr.position, speakerPositions[i], Time.deltaTime * 5f);
+					else
+						tr.localPosition = speakerPositions[i];
 				}
 				else
-					_virtualSpeakers[i].speakerAudio.transform.position = speakerPositions[i];
+				{
+					if (receivedVirtualSpeakerPositionAsWorldPosition)
+						_virtualSpeakers[i].speakerAudio.transform.position = speakerPositions[i];
+					else
+						_virtualSpeakers[i].speakerAudio.transform.localPosition = speakerPositions[i];
+				}
 			}
 		}
 		else
@@ -1054,6 +1063,9 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			
 			for (int i = 0; i < speakerPositions.Length; i++)
 			{
+				if (receivedVirtualSpeakerPositionAsWorldPosition)
+					speakerPositions[i] = transform.InverseTransformPoint(speakerPositions[i]);
+
 				var speaker = GetOrCreateVirtualSpeakerClass(out var isNew);
 				if (isNew)
 				{

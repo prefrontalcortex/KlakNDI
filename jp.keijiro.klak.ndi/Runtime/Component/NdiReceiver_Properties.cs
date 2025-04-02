@@ -97,8 +97,10 @@ public sealed partial class NdiReceiver : MonoBehaviour, IAdmDataProvider
 
     #region Audio Settings
 
+    [Range(0.5f, 50f)]
     public float virtualSpeakerDistances = 10f;
-    
+    [Tooltip("When disabled, the virtual speaker positions will be set locally to the world position of the receiver.")]
+    public bool receivedVirtualSpeakerPositionAsWorldPosition = false;
     #endregion
   
     	
