@@ -25,6 +25,7 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
     private AutoProperty _createVirtualSpeakers;
     private AutoProperty _receiveAudio;
     private AutoProperty _bandwidth;
+	private AutoProperty overrideReceivedSpeakerDistances;
     private AutoProperty virtualSpeakerDistances;
     private AutoProperty receivedVirtualSpeakerPositionAsWorldPosition;
     
@@ -136,6 +137,7 @@ sealed class NdiReceiverEditor : UnityEditor.Editor
 
         if (currentIndex <= 1)
         {
+			EditorGUILayout.PropertyField(overrideReceivedSpeakerDistances);
             EditorGUILayout.PropertyField(virtualSpeakerDistances);
             EditorGUILayout.PropertyField(receivedVirtualSpeakerPositionAsWorldPosition);
             

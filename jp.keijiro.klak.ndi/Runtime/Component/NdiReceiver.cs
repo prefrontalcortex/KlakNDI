@@ -1024,6 +1024,7 @@ public sealed partial class NdiReceiver : MonoBehaviour
 		_updateAudioMetaSpeakerSetup = false;
 		DestroyAudioSourceBridge();
 		var speakerPositions = GetReceivedSpeakerPositions();
+		
 		_virtualSpeakersCount = _virtualSpeakers.Count;
 		if (speakerPositions == null || speakerPositions.Length == 0)
 		{
@@ -1043,17 +1044,20 @@ public sealed partial class NdiReceiver : MonoBehaviour
 					var tr = _virtualSpeakers[i].speakerAudio.transform;
 					// TODO: figure out how to best lerp the position 
 					if (receivedVirtualSpeakerPositionAsWorldPosition)
-						tr.position =
-							speakerPositions[i]; // Vector3.Lerp(tr.position, speakerPositions[i], Time.deltaTime * 5f);
+						tr.position = speakerPositions[i]; // Vector3.Lerp(tr.position, speakerPositions[i], Time.deltaTime * 5f);
 					else
 						tr.localPosition = speakerPositions[i];
 				}
 				else
 				{
+					var speakerPos = speakerPositions[i];
+					if (overrideReceivedSpeakerDistances)
+						speakerPos = speakerPos.normalized * virtualSpeakerDistances;
+					
 					if (receivedVirtualSpeakerPositionAsWorldPosition)
-						_virtualSpeakers[i].speakerAudio.transform.position = speakerPositions[i];
+						_virtualSpeakers[i].speakerAudio.transform.position = speakerPos;
 					else
-						_virtualSpeakers[i].speakerAudio.transform.localPosition = speakerPositions[i];
+						_virtualSpeakers[i].speakerAudio.transform.localPosition = speakerPos;
 				}
 			}
 		}
@@ -1063,17 +1067,21 @@ public sealed partial class NdiReceiver : MonoBehaviour
 			
 			for (int i = 0; i < speakerPositions.Length; i++)
 			{
+				var speakerPos = speakerPositions[i];
+				if (overrideReceivedSpeakerDistances)
+					speakerPos = speakerPos.normalized * virtualSpeakerDistances;
+
 				if (receivedVirtualSpeakerPositionAsWorldPosition)
-					speakerPositions[i] = transform.InverseTransformPoint(speakerPositions[i]);
+					speakerPos = transform.InverseTransformPoint(speakerPos);
 
 				var speaker = GetOrCreateVirtualSpeakerClass(out var isNew);
 				if (isNew)
 				{
-					speaker.CreateGameObjectWithAudioSource(transform, speakerPositions[i], _receivingObjectBasedAudio);
+					speaker.CreateGameObjectWithAudioSource(transform, speakerPos, _receivingObjectBasedAudio);
 					speaker.CreateAudioSourceBridge(this, i, speakerPositions.Length, _systemAvailableAudioChannels);
 				}
 				else 
-					speaker.UpdateParameters(speakerPositions[i],i, speakerPositions.Length, _systemAvailableAudioChannels, _receivingObjectBasedAudio);
+					speaker.UpdateParameters(speakerPos,i, speakerPositions.Length, _systemAvailableAudioChannels, _receivingObjectBasedAudio);
 				_virtualSpeakers.Add(speaker);
 			}
 		}

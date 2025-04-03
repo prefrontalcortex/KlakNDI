@@ -97,6 +97,9 @@ public sealed partial class NdiReceiver : MonoBehaviour, IAdmDataProvider
 
     #region Audio Settings
 
+    [Tooltip("When speaker distances are received from the NDI stream, override the speaker distances of the AudioSource.")]
+    public bool overrideReceivedSpeakerDistances = false;
+
     [Range(0.5f, 50f)]
     public float virtualSpeakerDistances = 10f;
     [Tooltip("When disabled, the virtual speaker positions will be set locally to the world position of the receiver.")]
